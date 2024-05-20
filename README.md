@@ -12,7 +12,7 @@ VR-Eye seeks cells based on a user-defined phenotype. With VR-Eye, cell identity
 
 ![alt text](https://github.com/clairecross/Velociraptor/blob/main/Velociraptor%20Overview.png)
 
-Velociraptor Overview. VR-Claw utilizes local phenotypic cell neighborhoods to identify clinically relevant cell populations. The upper right panel in the red box highlights cells associated with shorter (red) or longer (blue) survival times. Marker Enrichment Modeling (MEM) can be used to automatically quantify population phenotypes, and MEM labels can then be used as input to VR-Eye. VR-Eye quantifies and plots similarity to a specified phenotype of interest (i.e., with a MEM label) with purple indicating low similarity and red indicating high similarity. 
+Velociraptor Overview. VR-Claw utilizes local phenotypic cell neighborhoods to identify clinically relevant cell populations. The upper right panel in the red box highlights cells associated with shorter (red) or longer (blue) survival times. Marker Enrichment Modeling (MEM) quantifies the phenotype of a population of interest, and that MEM label is used to seek similar cells in new samples with VR-Eye. VR-Eye quantifies and plots similarity to a specified phenotype of interest (i.e., with a MEM label) with purple indicating low similarity and red indicating high similarity. 
 
 If you’re interested in learning more, check out the other tools on the CytoLab Github page at:
 https://github.com/cytolab/
