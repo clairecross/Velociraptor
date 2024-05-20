@@ -1,0 +1,101 @@
+---
+title: "Intro_to_Velociraptor_Analysis"
+author: "Claire Cross, Jonathan Irish"
+output:
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: inline
+vignette: >
+  %\VignetteIndexEntry{Intro_to_Velociraptor_Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Intro to Velociraptor
+
+Explanation HERE
+
+### Installing Velociraptor
+
+To install Velociraptor, run the following code:
+
+```{r install_VR, eval = FALSE}
+#install Velociraptor from GitHub
+
+```
+
+### Example Data: 
+
+As an example, a dataset from the mass cytometry characterization of 
+
+
+```{r PBMC_data, eval=TRUE}
+#load VR package and example data
+library(cytoMEM)
+data(PBMC)
+head(PBMC)
+```
+  
+For additional details about the measured features and further references, see `?PBMC`.
+
+ 
+### Input data: File format and structure
+
+The 
+
+### Multiple Files
+
+#### Reading files in to R
+
+
+### Data Format
+
+
+
+### KNN MEM
+
+  
+
+### Reference Population Quantification with MEM
+
+ 
+
+
+### Putting it all together: Velociraptor analysis of 
+
+To run the 
+
+
+
+
+
+When successfully executed, the 
+
+
+
+```{r Velociraptor, eval=TRUE}
+#Run VR
+
+```
+
+
+## Generating Velociraptor plots
+
+
+
+Output files include:
+
+* 
+
+
+
+```{r build_heatmaps,eval=TRUE}
+#generate Velociraptor plots
+
+```
+
+```{r, eval=TRUE}
+#get information about the current R session
+sessionInfo()
+```

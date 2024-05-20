@@ -1,0 +1,262 @@
+---
+title: "VR-Eye on the RAPID Dataset"
+author: "Claire Cross, Cass Mayeda"
+date: "2024-05-20"
+---
+
+```{r setup, include=FALSE}
+suppressPackageStartupMessages({
+  library(Biobase)
+  library(flowCore)
+  library(ggplot2)
+  library(tidyverse)
+  library(cowplot)
+  library(RColorBrewer)
+  library(viridis)
+  library(data.table)
+  library(stringr)
+  library(FNN)
+  library(matrixStats)
+  library(cytoMEM)
+  library(gplots)
+  library(tidyverse)
+  library(gbutils)
+  library(dbscan)
+  library(scales)
+})
+
+source(paste0(getwd(), "/R/VRPTR_functions.R"))
+source(paste0(getwd(), "/R/VRPTR_plots.R"))
+expr.colors = colorRampPalette(rev(brewer.pal(n = 11, name = "Spectral")))(5)
+```
+
+```{r FUNCTIONS}
+tsne.heat.on.markers <- function(tsne.data, transformed.chosen.markers){
+  tsne.by.marker <- as_tibble(tsne.data) %>%
+    bind_cols(transformed.chosen.markers)  %>%
+    gather(channel, intensity, -tSNE1, -tSNE2) %>%
+    mutate(across(channel,factor))%>%
+    group_split(channel) %>%
+    map(
+      ~ggplot(.,aes(x= tSNE1, y= tSNE2, col = intensity)) +
+    geom_point(size = 3) +
+    scale_color_gradientn(
+      colours = colorRampPalette(rev(brewer.pal(n = 11, name = "Spectral")))(5))+
+    facet_grid(~ channel, labeller = function(x) label_value(x, multi_line = FALSE)) +
+    coord_fixed() +
+    theme_bw()+
+    theme(strip.text.x = element_text(size = 20),legend.title=element_blank()))%>%
+    plot_grid(plotlist = ., align = 'hv', ncol = 8)
+  
+  png(paste(output.path, strftime(Sys.time(),"%Y-%m-%d"), sample.levels[i], " t-SNE on transformed data.png"),height = 2000,width = 4000)
+  print(tsne.by.marker)
+  dev.off()
+}
+
+tsne.density <- function(tsne.data){
+  tsne.by.density <- ggplot(tsne.data, aes(x = tSNE1, y = tSNE2)) + 
+    coord_fixed()+ geom_point(size = 0.5) +geom_density_2d_filled(bins = 39) +scale_fill_manual(values = c("NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA",viridis::viridis(28,option = "A"))) +
+  labs(x = "t-SNE 1", y = "t-SNE 2", 
+    title = "Density on t-SNE Axes") + theme_bw() + 
+    theme(panel.grid = element_blank(), legend.position = "none") 
+  
+  png(paste(output.path, strftime(Sys.time(),"%Y-%m-%d"), sample.levels[i], "t-SNE density.png"),height = 2000,width = 4000)
+  print(tsne.by.density)
+  dev.off()
+}
+```
+
+```{r, file info and VR constants}
+file.to.search <- paste0(getwd(), '/fcs files/') 
+fcs.files <- dir(path = file.to.search, pattern = "*.fcs")
+
+#set main output file path
+og.output.path <- paste0(getwd(), '/output files/')
+
+#specify samples in files 
+sample.group = "HIDI IEI"
+split.names <- lapply(fcs.files, function(x) str_split(x, '_0')[[1]][1])
+split.names <- lapply(split.names, function(x) str_split(x, '_')[[1]])
+sample.levels <- sapply(split.names, function(x) x[length(x)])
+
+
+#sampling info 
+sample.files <- FALSE
+sample.num <- 1000 
+
+#KNN settings
+kvalue <- 60
+
+#specify searching labels and goals
+goals <- c('naive CD4', 'naive CD8', 'CD45RA lo naive CD4', 'CXCR3+ naive CD8', 
+           'CD57+ CD8', 'CD57+ CD4')
+ref.labels <- c('CD4+8 CD45RA+8 CCR7+7 CD8+0 CXCR3+0 CD45R0+0', 
+                'CD45RA+10 CD8+7 CCR7+7 CD95+1 CD4+0 CD45R0+0 CXCR3+0',
+                'CD4+7 CCR7+6 CD45RA+3 CD8+0 CXCR3+0',
+                'CD45RA+9 CD8+7 CCR7+7 CXCR3+5 CXCR4+4 CD95+1 CD4+0 CD45R0+0',
+                'CD45RA+9 CD57+9 CD95+6 CD8+5 CD4+0 CCR7+0',
+                'CD4+8 CD57+6 CXCR3+5 CD8+0 CCR7+0 CD27+0')
+
+#set minimum cluster size
+min.cluster <- 15
+
+#DBSCAN settings
+db.eps <- 2 
+```
+
+```{r, VR-Eye}
+#loop through individual patient tSNEs
+for (i in 5:length(fcs.files)){
+  print(paste0('starting file ', i, ': ', sample.levels[i]))
+  
+  #create output folder 
+  output.name = paste0(strftime(Sys.time(),'%m-%d '), sample.levels[i], " VR-Eye output/")
+  output.path = paste0(og.output.path, output.name)
+  if (!dir.exists(output.path)) {dir.create(output.path)}
+  
+  #load files to search 
+  setwd(file.to.search)
+  #combine data
+  individual.data <- as.data.frame(exprs(read.FCS(fcs.files[i], truncate_max_range=FALSE)))
+  colnames(individual.data)[1:(length(individual.data) - 2)] <- as.character(read.FCS(fcs.files[[i]], truncate_max_range=FALSE)@parameters@data[["desc"]])
+  individual.data <- cbind(individual.data, File_ID=i)
+
+  #rename markers
+  panel.info <- marker.selection(colnames(individual.data), token='_', position='after')
+
+  if (sample.files == TRUE){ 
+    #set seed for reproducibility
+    set.seed(1)
+    #split into individual files
+    files.to.sample <- split(individual.data, individual.data$`File_ID`) 
+    sampled.data <- list()
+    for (i in 1:length(files.to.sample)){
+      #file has a lot of cells => we must downsample
+      if ((nrow(files.to.sample[[i]])) >= sample.num){ 
+        sampled.data[[i]] <- as.data.frame(files.to.sample[[i]][sample(nrow(files.to.sample[[i]]), sample.num), ])
+      #not enough cells to downsample => just keep all of the cells present
+      }else{sampled.data[[i]] <- files.to.sample[[i]]}
+    }
+    #combine list data into one big data frame
+    combined.sampled.data <- as.data.frame(do.call(rbind, sampled.data))
+  }else{combined.sampled.data <- individual.data}
+
+  print(paste0(nrow(combined.sampled.data), ' cells will be analyzed'))
+  
+  #select columns
+  marker.data = combined.sampled.data[, panel.info$indices]
+  marker.data <- asinh(marker.data / 5)
+  colnames(marker.data) <- panel.info$trimmed_names
+  
+  #select tSNE columns 
+  tSNE.indx1 = 79
+  tSNE.indx2 = 80
+  tSNE.data = combined.sampled.data[, c(tSNE.indx1:tSNE.indx2)]
+  colnames(tSNE.data) <- c("tSNE1", "tSNE2")
+  
+  #t-SNE plots
+  # tsne.heat.on.markers(tSNE.data, marker.data)
+  # tsne.density(tSNE.data)
+  
+  #KNN_MEM
+  #check for knn.files in folder
+  if(i %in% c(31:39)){run.date<-'04-09'}else if (i%in%c(1:4, 10:30)){run.date <- '04-08'}else{run.date <- '03-25'}
+  knn.path <- paste0('C:/Users/clacr/Box/Irish_Lab/Projects/VRPTR + Cell Sim Paper/VR-Eye/2024-03-04 HIDI GATA2 pops/output files/CEC filtered pop labels/', run.date, ' ', sample.levels[i], " VR-Eye output/")
+  setwd(knn.path)
+  knn.data.file <- dir(pattern='knn labels.RData')
+  rds.name <- paste0(knn.path, 'knn labels.RData')
+  
+  #load knn.labels if the file exists; otherwise, calculate knn.labels
+  if(is.na(knn.data.file[1])){
+    start_time = Sys.time()
+    knn.labels = knn_MEM(tSNE.data, marker.data, kvalue=kvalue)
+    total_time = Sys.time() - start_time
+    print(' KNN MEM completed in ')
+    print(total_time)
+      
+    #save as rds 
+    save(knn.labels, file = paste0(output.path, 'knn labels.RData'))
+  }else{load(file=rds.name)}
+  
+  #save as rds 
+  rds.name <- paste0(output.path, 'knn labels.RData')
+  save(knn.labels, file = paste0(output.path, 'knn labels.RData'))
+  
+  #set multi-round variables
+  current_round = 0 
+  multi.labels <- data.frame()
+  multi.df = combined.sampled.data
+  
+  #loop through each ref label supplied
+  for (j in 1:length(goals)){
+    print(paste0('seaching for ', goals[j], ' cells in file ', i, ': ', sample.levels[i]))
+    
+    #set goal & search label
+    goal <- goals[j]
+    ref.label <- ref.labels[j]
+    # print(paste0(goal, ': ', ref.label))
+
+    # print('checking label')
+    # check that markers in the searching label are being measured in the new dataset
+    common.label <- check_panel(ref.label, panel.info)
+    common.ref.MEM.score <- common.label[[1]]
+    ref.label <- common.label[[2]]
+
+    # create output folder
+    current_round <- current_round + 1
+    run.folder = output.path
+    dir.create(run.folder)
+
+    #VR-Eye search and sim plot
+    common.MEM.scores <- knn.labels[, colnames(common.ref.MEM.score)]
+
+    #check if only one marker
+    if (!is.data.frame(common.MEM.scores)) {
+      common.MEM.scores <- as.data.frame(common.MEM.scores)
+      colnames(common.MEM.scores) <- colnames(common.ref.MEM.score)
+    }
+    
+    # print('calculating similarity')
+    #calculate similarity
+    sim = sim_scores(common.MEM.scores, common.ref.MEM.score)
+    my.range <- max(sim)-min(sim)
+    sim.data = cbind(marker.data, File_ID = i, tSNE.data, sim)
+    sim.plot = VRPTR_sim_plot(sim.data, ref.label)
+
+    #export
+    png(paste0(run.folder, goal, " similarity.png"),
+        height = 1500, width = 1500, res = 200)
+    print(sim.plot)
+    dev.off()
+
+
+    #save round information to multi.df
+    # print('saving data to multi.df')
+    this.round <- c()
+    this.round = cbind(
+      VRPTR_round = current_round,
+      search_label = ref.label,
+      goal = goal,
+      min.clust = min.cluster,
+      kvalue = kvalue,
+      db.eps = 2
+    )
+    multi.labels <- rbind(multi.labels, this.round)
+    save(multi.labels, file = paste0(output.path, sample.levels[i], " multi-run labels.RData"))
+
+    #save similarity score in multi-round results df
+    multi.df <- cbind(multi.df, sim)
+    colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_sim")
+
+    #update multi.df
+    rds.name <- paste0(output.path, sample.levels[i], ' multi-run VRPTR.RData')
+    save(multi.df, file = rds.name)
+  }
+}
+
+```
+
+```{r}
+
+```
+
