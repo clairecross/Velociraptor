@@ -1,7 +1,6 @@
 # Velociraptor
 
-### Velociraptor publication available through bioRxiv:
-https://www.biorxiv.org/content/10.1101/2024.05.01.591375v1
+### Velociraptor publication available through bioRxiv: https://www.biorxiv.org/content/10.1101/2024.05.01.591375v1
 
 The Velociraptor workflow includes two novel cell identification tools: Velociraptor-Claw (VR-Claw) and Velociraptor-Eye (VR-Eye).
 
@@ -11,7 +10,7 @@ VR-Eye seeks cells based on a user-defined phenotype. With VR-Eye, cell identity
 
 ### Figure 1:
 
-![alt text](/Velociraptor Overview.png)
+[Velociraptor overview figure](Velociraptor Overview.png)
 
 Velociraptor Overview. VR-Claw utilizes local phenotypic cell neighborhoods to identify clinically relevant cell populations. The upper right panel in the red box highlights cells associated with shorter (red) or longer (blue) survival times. Marker Enrichment Modeling (MEM) can be used to automatically quantify population phenotypes, and MEM labels can then be used as input to VR-Eye. VR-Eye quantifies and plots similarity to a specified phenotype of interest (i.e., with a MEM label) with purple indicating low similarity and red indicating high similarity. 
 
