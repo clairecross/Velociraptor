@@ -239,7 +239,7 @@ for (j in 1:length(goals)){
 
   #save similarity score in multi-round results df
   multi.df <- cbind(multi.df, sim)
-  colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_sim")
+  colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_", goal, "_sim")
 
   #update multi.df
   rds.name <- paste0(og.output.path, 'multi-run VRPTR.RData')
@@ -259,30 +259,23 @@ for (j in 1:length(goals)){
 
 ```
 
-
-
-
-
-
-
-
 ```{r export as fcs}
 #split data by patient
-separate.fcs.files <- split(all.IEI.Eye.data[,c(1:88)], all.IEI.Eye.data$File_ID)
+separate.fcs.files <- split(multi.df, multi.df$File_ID)
 for (i in 1:length(separate.fcs.files)){
   #format data
-  single.file <- separate.fcs.files[[i]]
-  reduce.data <- single.file[,c(1:87)]
+  reduce.data <- separate.fcs.files[[i]]
   mat.input <- as.matrix(reduce.data)
   #set metadata
-  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(all.IEI.Eye.data[,c(1:87)]))
+  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(multi.df))
   metadata$range <- apply(apply(mat.input, 2, range), 2, diff)
   metadata$minRange <- apply(mat.input, 2, min)
   metadata$maxRange <- apply(mat.input, 2, max)
-  input.flowframe <- new("flowFrame", exprs=mat.input,parameters = AnnotatedDataFrame(metadata))  
-  newname <- single.file[1,'Patient_ID']
-  new.filename <- paste0(og.output.path, '/', strftime(Sys.time(),"%Y-%m-%d"), "_", newname, "_VR-Eye.fcs")
+  input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
+  #write file
+  sample.name <- sample.levels[reduce.data[1, 'File_ID']] 
+  new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR-Eye.fcs")
   write.FCS(input.flowframe, filename=new.filename)
-  print(paste0("FCS file ", i, ': ', single.file[1,'Patient_ID'],  " done"))
+  print(paste0("FCS file ", i, ': ', sample.name, " done"))
 }
 ```
