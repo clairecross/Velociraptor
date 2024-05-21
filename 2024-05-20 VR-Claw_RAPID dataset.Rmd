@@ -8,88 +8,109 @@ date: "05-20-2024"
 knitr::opts_chunk$set(echo = TRUE)
 
 # # uncomment lines below to install packages
-# install.packages("survminer", repos = "http://cran.us.r-project.org")
-# install.packages("Rtsne", repos = "http://cran.us.r-project.org")
-# install.packages("devtools", repos = "http://cran.us.r-project.org")
 # if (!require("BiocManager", quietly = TRUE))
 #    install.packages("BiocManager")
+# #install.packages("devtools", repos = "http://cran.us.r-project.org")
 # BiocManager::install("cytoMEM")
 # install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-# if (!requireNamespace("BiocManager", quietly = TRUE))
-#    install.packages("BiocManager")
+# install.packages("dplyr", repos = "http://cran.us.r-project.org")
+# #install.packages("ggpubr", repos = "http://cran.us.r-project.org")
 # BiocManager::install("flowCore")
-# BiocManager::install("FlowSOM")
 # BiocManager::install("Biobase")
-# install.packages("ggpubr", repos = "http://cran.us.r-project.org")
+# install.packages("survival", repos = "http://cran.us.r-project.org")
+# install.packages("survminer", repos = "http://cran.us.r-project.org")
+# #install.packages("plyr", repos = "http://cran.us.r-project.org")
+# install.packages("cowplot", repos = "http://cran.us.r-project.org")
+# install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
+# install.packages("FNN", repos = "http://cran.us.r-project.org")
+# install.packages("fancycut", repos = "http://cran.us.r-project.org")
+# install.packages("dbscan", repos = "http://cran.us.r-project.org")
+# install.packages("ggplot2", repos = "http://cran.us.r-project.org")
 ``` 
 
 ```{r initialization}
-# load packages into the working library
-suppressPackageStartupMessages({library(devtools)
+#load packages into the working library
+suppressPackageStartupMessages({#library(devtools)
                                 library(cytoMEM)
-                                library(RAPID)
                                 library(tidyverse)
                                 library(dplyr)
-                                library(ggpubr)
+                                #library(ggpubr)
                                 library(flowCore)
                                 library(Biobase)
                                 library(survival)
                                 library(survminer)
-                                library(plyr)
-                                library(Rtsne)
+                                #library(plyr)
                                 library(cowplot)
                                 library(RColorBrewer)
                                 library(FNN)
                                 library(fancycut)
                                 library(dbscan)
-                                library(Rtsne)})
-source('./R/plots.R')
+                                library(ggplot2)})
+source('./R/tSNE_plots.R')
+source('./R/VR-Claw_plots.R')
+source('./R/VR-Claw_functions.R')
 source('./R/tatarize_color_palette.R')
 
-#set working directory 
-file.path <- './all data with 10 tSNEs.RData'
+#specify fcs file location and output path
+file.path <- './data files/RAPID - Leelatian and Sinnaeve et al/'
+output.path <- './output files/VR-Claw_RAPID/'
+
+#locate fcs file
+fcs.files <- dir(path = file.path, pattern = "*.fcs")
+print(fcs.files)
 ```
 
 ```{r load data}
 #load cell data
-load('C:/Users/clacr/Box/Irish_Lab/Projects/VRPTR + Cell Sim Paper/VR-Eye/2023-07-26 GNP GPP stability in RAPID dataset/tSNE files/all data with 10 tSNEs.RData')
-combined.patient.data <- to.save
-rm(to.save)
-
-names <- colnames(combined.patient.data) 
+setwd(file.path)
+data.list <- lapply(lapply(fcs.files, read.FCS, truncate_max_range = FALSE), exprs)
+combined.patient.data <- as.data.frame(do.call(rbind, mapply(cbind, data.list, "File_ID"= c(1:length(data.list)), SIMPLIFY=F)))
+colnames(combined.patient.data)[1:(ncol(combined.patient.data)-1)] <- as.character(read.FCS(fcs.files[1], truncate_max_range=FALSE)@parameters@data[["desc"]])
 colnames(combined.patient.data)
 
 #store number of cells per file
 sample_num <- nrow(combined.patient.data[which(combined.patient.data$File_ID == 1),]) #assumes equal number of cells in every file 
 
-# create varible for survival or clinical data
-OS.data.files <-  dir(path='./', pattern="*.csv")
+#load clinical data
+OS.data.files <-  dir(pattern="*.csv")
 OS.data <- read.csv(OS.data.files)
 ```
 
 ```{r select data}
-#transform other data 
+#arcsinh transformation
+cofactor <- 5
 transformed.data <- combined.patient.data %>% select(-contains('File_ID')) %>% 
-                    select(-contains('tSNE')) %>% mutate_all(function(x) asinh(x/5))
+                    select(-contains('tSNE')) %>% mutate_all(function(x) asinh(x/cofactor))
 
-# choose markers to use for variance calculation and transform
-chosen.markers <- transformed.data %>% select(contains('(v2)'))
+#choose markers to use downstream for MEM calculations
+chosen.markers <- transformed.data %>% select(contains('(v2)') | contains('CycinB1'))
 
-#tsne indices
+#select tsne indices
 tsne.data <- combined.patient.data[46:47]
 colnames(tsne.data) <- c('tSNE1', 'tSNE2')
-  
-#plot tSNE axes
-tsne.plot <- embedding.plot(df=tsne.data, idx1=2, idx2=1, tsne.title='RAPID cohort')
-print(tsne.plot)
 ```
 
-```{r set constants}
-#survival data
-clinical_col <- 3
-status_col <- 4
+```{r t-SNE plots}
+#plot tSNE axes
+tsne.plot <- ggplot(tsne.data) + geom_point(aes(x=tSNE2, y=tSNE1), color='lightgrey') +
+              labs(x='t-SNE2', y='t-SNE1', title='RAPID GBM Cohort', 
+                   caption="Data from Leelatian & Sinnaeve et al., eLife. 2020") + 
+              coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
+print(tsne.plot)
 
-#color palette
+#plot cell density on t-SNE axes
+tsne.dens.plot <- tsne_density(tsne.data, export=TRUE, output_path=output.path)
+
+#plot heat on markers
+tsne.heat.on.markers <- tsne_heat_on_markers(tsne.data, chosen.markers, n_col=5, export=TRUE, output_path=output.path)
+```
+
+```{r set VR-Claw constants}
+#choose clinical data for VR-Claw
+clinical_col <- 3 #OS Time
+status_col <- 4 #OS Status
+
+#define color palette
 col.palette <- c("p>0.1" ="lightgray" ,
                  "p<0.01 HR>1" = "darkred",
                  "p<0.05 HR>1" = "red",
@@ -100,122 +121,112 @@ col.palette <- c("p>0.1" ="lightgray" ,
 
 #k-value for k-nearest neighbors 
 kval <- floor(sqrt(nrow(tsne.data)))
-```
 
-```{r VR-Claw}
-#run VR-Claw on the RAPID tsne axes with different values of k
-for (i in kval.lst[9]){
-  start_time <- Sys.time()
-  kval <- i
-  print(paste0('---------------------------- k of ', i, ' ----------------------------'))
-  #create output folder
-  dir.create(paste0('./output files/k=', i))
-  output.path <- paste0('./output files/k=', i, '/')
-  
-  #KNN
-  #get KNN indices for each cell
-  neighbor.index <- knnx.index(tsne.data, tsne.data, k=kval)
-  
-  cluster_and_patient_df <- as.data.frame(cbind(neighbor.index, combined.patient.data$File_ID))
-  colnames(cluster_and_patient_df)[ncol(cluster_and_patient_df)] <- 'File_ID'
-  
-  #determine which cells belong to which patient (based on sample number)
-  patient_list <- list()
-  for (i in 1:length(unique(cluster_and_patient_df$File_ID))){
-    patient_list[[i]] <- seq(((i-1)*sample_num + 1), i*sample_num)
-    if (i==1){ #first patient should include the lower bound in the interval
-      cell.index.intervals <- paste0('[', ((i-1)*sample_num + 1), ',', i*sample_num, ']')
-    }else{
-      cell.index.intervals <- c(cell.index.intervals, paste0('(', ((i-1)*sample_num + 1), ',', i*sample_num, ']'))
-    }
-  }
-  
-  
-  #calculate survival statistics
-  #find neighborhood abundances for each patient
-  all.subset.abundances <- as.data.frame(matrix(ncol=length(patient_list),            #col=patient
-                                                nrow=nrow(cluster_and_patient_df))) #row=neighborhood
-  #for each neighborhood, determine the percentage of each patient's cells that are in that neighborhood, and that neighborhood's IQR
-  num.patients <- c()
-  abundance.IQR <- list()
-  abundance.groups <- list() #list of neighborhoods; each element has length = number of patients
-  cox.summary<- list()
-  high.low.groups <- list()
-  low.median <- vector()
-  high.median <- vector()
-  
-  #FUNCTIONS
-  calc_nbh_percent <- function(pl, cp_df_r){ #pass in patient_list and a row of cluster_and_patient_df
-    cp_df_r <- as.data.frame(t(cp_df_r)) #reset data type to row in a dataframe
-    #for each patient, what percentage of their cells are in this neighborhood?
-    length(cp_df_r[1:kval][,which(cp_df_r[1:kval] %in% pl)])*100/sample_num
-
-  }
-  
-  #how many patients are in a neighborhood
-  calc_num_patients <- function(cp_df){num.patients <- length(unique(wafflecut(cp_df,
-                                                        intervals=cell.index.intervals)))}
-
-  #is a neighborhood prognostic?
-  nbh_analysis <- function(cp_df){
-    #what is each patient's cell abundance for this particular neighborhood
-    nbh_percent <- sapply(patient_list, calc_nbh_percent, cp_df)
-    
-    #what is that neighborhood's IQR (75th percentile - 25th percentile)
-    abundance.IQR = IQR(nbh_percent) 
-
-    #divide patients into high and low groups based on subset abundance and test for enrichment
-    abundance.groups <- ifelse(nbh_percent > abundance.IQR, 1, 0) # 1 = high, 0 = low
-
-    #Cox proportional hazards model
-    Group <- factor(abundance.groups, levels = c(0,1), labels = c("Low", "High"))
-    group.survival.data <- cbind(OS.data, Group)
-    high.low.groups <- split(group.survival.data, group.survival.data$Group)
-    low.median <- median(high.low.groups[["Low"]][[clinical_col]])
-    high.median <- median(high.low.groups[["High"]][[clinical_col]])
-    coxph.model <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, 
-                         data=group.survival.data)
-    summary(coxph.model)
-  }
-  
-  #analyze
-  num.patients <- apply(cluster_and_patient_df, 1, calc_num_patients)
-  cox.summary <- apply(cluster_and_patient_df, 1, nbh_analysis)
-  
-  #export
-  save(num.patients, file=paste0(output.path, 'num patients_vectorized.RData'))
-  save(cox.summary, file=paste0(output.path, 'cox summary_vectorized.RData'))
-  
-  #check time
-  total_time <- Sys.time() - start_time
-  time_diff <- paste(total_time, attr(total_time, 'units')) 
-  print(time_diff)
-  write.table(time_diff, file=paste0(output.path, 'time elapsed_k=', kval, '_vectorized.txt'))
-}
-```
-
-```{r results}
-og.wd <- getwd()
-#minimum number of patients and cells per cluster
+#filtering variables
 min.patients.per.cluster <- 1
 min.cells.per.cluster <- 25
 pval.cutoff <- 0.05
-for (i in kval.lst){
-  start_time <- Sys.time()
-  kval <- i
-  print(paste0('---------------------------- k of ', i, ' ----------------------------'))
-  
-  #create output folder
-  dir.create(paste0('./output files/k=', i, '/unfiltered'))
-  dir.create(paste0('./output files/k=', i, '/filtered'))
-  output.path <- paste0('./output files/k=', i, '/')
+```
 
-  
-  #load neighborhood survival data
-  load(paste0(output.path, 'cox summary_vectorized.RData'))
-  load(paste0(output.path, 'num patients_vectorized.RData'))
+```{r VR-Claw}
+start_time <- Sys.time()
 
-  #original VR-Claw Plot
+#get KNN indices for each cell
+neighbor.index <- knnx.index(tsne.data, tsne.data, k=kval)
+
+#add File_ID data to KNN indices  
+cluster_and_patient_df <- as.data.frame(cbind(neighbor.index, combined.patient.data$File_ID))
+colnames(cluster_and_patient_df)[ncol(cluster_and_patient_df)] <- 'File_ID'
+  
+#determine which cells belong to which patient (based on sample number)
+patient_list <- list()
+for (i in 1:length(unique(cluster_and_patient_df$File_ID))){
+  patient_list[[i]] <- seq(((i-1)*sample_num + 1), i*sample_num)
+  if (i==1){ #first patient should include the lower bound in the interval
+    cell.index.intervals <- paste0('[', ((i-1)*sample_num + 1), ',', i*sample_num, ']')
+  }else{
+    cell.index.intervals <- c(cell.index.intervals, paste0('(', ((i-1)*sample_num + 1), ',', i*sample_num, ']'))
+  }
+}
+  
+  
+
+  # #find neighborhood abundances for each patient
+  # all.subset.abundances <- as.data.frame(matrix(ncol=length(patient_list),            #col=patient
+  #                                               nrow=nrow(cluster_and_patient_df))) #row=neighborhood
+  # #for each neighborhood, determine the percentage of each patient's cells that are in that neighborhood, and that neighborhood's IQR
+  # num.patients <- c()
+  # abundance.IQR <- list()
+  # abundance.groups <- list() #list of neighborhoods; each element has length = number of patients
+  # cox.summary<- list()
+  # high.low.groups <- list()
+  # low.median <- vector()
+  # high.median <- vector()
+
+
+  # #FUNCTIONS
+  # calc_nbh_percent <- function(pl, cp_df_r){ #pass in patient_list and a row of cluster_and_patient_df
+  #   cp_df_r <- as.data.frame(t(cp_df_r)) #reset data type to row in a dataframe
+  #   #for each patient, what percentage of their cells are in this neighborhood?
+  #   length(cp_df_r[1:kval][,which(cp_df_r[1:kval] %in% pl)])*100/sample_num
+  # 
+  # }
+  # 
+  # #how many patients are in a neighborhood
+  # calc_num_patients <- function(cp_df){num.patients <- length(unique(wafflecut(cp_df,
+  #                                                       intervals=cell.index.intervals)))}
+  # 
+  # #is a neighborhood prognostic?
+  # nbh_analysis <- function(cp_df){
+  #   #what is each patient's cell abundance for this particular neighborhood
+  #   nbh_percent <- sapply(patient_list, calc_nbh_percent, cp_df)
+  #   
+  #   #what is that neighborhood's IQR (75th percentile - 25th percentile)
+  #   abundance.IQR = IQR(nbh_percent) 
+  # 
+  #   #divide patients into high and low groups based on subset abundance and test for enrichment
+  #   abundance.groups <- ifelse(nbh_percent > abundance.IQR, 1, 0) # 1 = high, 0 = low
+  # 
+  #   #Cox proportional hazards model
+  #   Group <- factor(abundance.groups, levels = c(0,1), labels = c("Low", "High"))
+  #   group.survival.data <- cbind(OS.data, Group)
+  #   high.low.groups <- split(group.survival.data, group.survival.data$Group)
+  #   low.median <- median(high.low.groups[["Low"]][[clinical_col]])
+  #   high.median <- median(high.low.groups[["High"]][[clinical_col]])
+  #   coxph.model <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, 
+  #                        data=group.survival.data)
+  #   summary(coxph.model)
+  # }
+  
+#calculate the number of patients present in each neighborhood
+num.patients <- apply(cluster_and_patient_df, 1, calc_num_patients)
+
+#calculate survival statistics for each neighborhood
+cox.summary <- apply(cluster_and_patient_df, 1, nbh_analysis)
+  
+#export neighborhood data
+save(num.patients, file=paste0(output.path, 'num patients.RData'))
+save(cox.summary, file=paste0(output.path, 'cox summary.RData'))
+  
+#calculate time elapsed
+total_time <- Sys.time() - start_time
+time_diff <- paste(total_time, attr(total_time, 'units')) 
+print(time_diff)
+write.table(time_diff, file=paste0(output.path, 'VR-Claw time elapsed.txt'))
+```
+
+```{r results}
+start_time <- Sys.time()
+
+#create output folders
+dir.create(paste0(output.path, '/unfiltered'))
+dir.create(paste0(output.path, '/filtered'))
+
+# #load neighborhood survival data
+# load(paste0(output.path, 'cox summary.RData'))
+# load(paste0(output.path, 'num patients.RData'))
+
+#original VR-Claw Plot
   #set significance status for each cell
   plotting.data <- data.frame(tSNE2=tsne.data[,2], 
                               tSNE1=tsne.data[,1], 
@@ -281,7 +292,9 @@ for (i in kval.lst){
       res = 200, width = 1500, height = 1500)
   print(VRPTR_plot)
   dev.off()
+```
 
+```{r}
   #get significance data
   marker.tsne.data <- cbind(combined.patient.data[,c(1:43, 48)], tsne.data)
   all.data <- left_join(marker.tsne.data, plotting.data[,c(1,2,4,5)]) #add to cell data
