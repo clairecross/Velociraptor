@@ -12,23 +12,24 @@ VR_Claw_plot_fxn <- function(df=data.for.KNN, #data used for KNN
                               cluster=c(1:nrow(df)), 
                               num.neighborhood.patients=num.patients, 
                               status="p>0.1")
-
-  for (z in 1:length(survival_stats)){
-    cox.coef <- survival_stats[[z]]$coefficients
-    #each neighborhood must have the minimum number of patients per cluster to be significant
-    if (plotting.data$num.neighborhood.patients[z] >= min.patients.per.cluster){
-      if (cox.coef[,c(5)] <= 0.01 & cox.coef[,c(2)] <= 1){ #p<0.01, HR<1
-        plotting.data$status[z] <- "p<0.01 HR<1"
-      }else if (cox.coef[,c(5)] <= 0.05 & cox.coef[,c(2)] <= 1){ #p<0.05, HR<1
-        plotting.data$status[z] <- "p<0.05 HR<1"
-      }else if (cox.coef[,c(5)] <= 0.1 & cox.coef[,c(2)] <= 1){ #p<0.1 HR<1
-        plotting.data$status[z] <- "p<0.1 HR<1"
-      }else if (cox.coef[,c(5)] <= 0.01 & cox.coef[,c(2)] >= 1){ #p<0.01 HR>1
-        plotting.data$status[z] <- "p<0.01 HR>1"
-      }else if (cox.coef[,c(5)] <= 0.05 & cox.coef[,c(2)] >= 1){ #p<0.05 HR>1
-        plotting.data$status[z] <- "p<0.05 HR>1"
-      }else if (cox.coef[,c(5)] <= 0.1 & cox.coef[,c(2)] >= 1){ #p<0.1 HR>1
-        plotting.data$status[z] <- "p<0.1 HR>1"
+  if(is.data.frame(survival_stats)){plotting.data$status <- survival_stats$status}else{
+    for (z in 1:length(survival_stats)){
+      cox.coef <- survival_stats[[z]]$coefficients
+      #each neighborhood must have the minimum number of patients per cluster to be significant
+      if (plotting.data$num.neighborhood.patients[z] >= min.patients.per.cluster){
+        if (cox.coef[,c(5)] <= 0.01 & cox.coef[,c(2)] <= 1){ #p<0.01, HR<1
+          plotting.data$status[z] <- "p<0.01 HR<1"
+        }else if (cox.coef[,c(5)] <= 0.05 & cox.coef[,c(2)] <= 1){ #p<0.05, HR<1
+          plotting.data$status[z] <- "p<0.05 HR<1"
+        }else if (cox.coef[,c(5)] <= 0.1 & cox.coef[,c(2)] <= 1){ #p<0.1 HR<1
+          plotting.data$status[z] <- "p<0.1 HR<1"
+        }else if (cox.coef[,c(5)] <= 0.01 & cox.coef[,c(2)] >= 1){ #p<0.01 HR>1
+          plotting.data$status[z] <- "p<0.01 HR>1"
+        }else if (cox.coef[,c(5)] <= 0.05 & cox.coef[,c(2)] >= 1){ #p<0.05 HR>1
+          plotting.data$status[z] <- "p<0.05 HR>1"
+        }else if (cox.coef[,c(5)] <= 0.1 & cox.coef[,c(2)] >= 1){ #p<0.1 HR>1
+          plotting.data$status[z] <- "p<0.1 HR>1"
+        }
       }
     }
   }
@@ -62,3 +63,35 @@ VR_Claw_plot_fxn <- function(df=data.for.KNN, #data used for KNN
 }
 
 #population survival plots
+pop_survival_analysis <- function(population, pop.name, col.pal){
+  group.names <- c(paste0(pop.name, "-Low"), paste0(pop.name, "-High"))
+  
+  #calculate pop abundance per
+  population$sum <- rowSums(population)
+  pop.abundance.IQR <- IQR(population$sum)
+  population$group <- ifelse(population$sum>=pop.abundance.IQR, 1, 0)
+  Group <- factor(population$group, levels = c(0, 1), labels = group.names)
+  factored.data <- cbind(OS.data, Group) #select OS Time, OS Status and Group
+  
+  #calculate cox proportional hazards model 
+  model.to.plot <- survfit(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #graphing data
+  model.for.stats <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #Cox PH Model
+  model.stats <- summary(model.for.stats) #summarize cox ph
+  
+  #access interesting stats from Cox PH Model
+  pval <- round(model.stats[["coefficients"]][,'Pr(>|z|)'], 3)
+  HR <- round(model.stats[["coefficients"]][,'exp(coef)'], 3)
+  conf.ints <- c(round(model.stats[["conf.int"]][,3], 2), 
+                 round(model.stats[["conf.int"]][,4], 2))
+  CI <- paste0('[', min(conf.ints), ',', max(conf.ints), ']')
+  
+  #plot
+  pop.plot <- ggsurvplot(model.to.plot, data=factored.data, risk.table=T,
+                         legend.labs = group.names, legend.title = "Group",
+                         censor.shape=124, palette=col.pal)
+  pop.plot$plot <- pop.plot$plot + annotate("text", x=Inf, y=Inf, vjust=1, hjust=1, size=5,
+                                            label=paste0('p-value = ', pval, '
+                                                         HR = ', HR, '
+                                                         95% CI ', CI)) #annotate with stats
+  return(list(population, pop.plot))
+}

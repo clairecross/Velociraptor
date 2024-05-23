@@ -119,5 +119,5 @@ cox_ph_cluster_fxn <- function(all.subset.abundances){
                                         title = cluster.title)
     }
   }
-  return(list(survival.plots, pval.list, HR.list))
+  return(list(survival.plots, final.prog.clusters, pval.list, HR.list))
 }

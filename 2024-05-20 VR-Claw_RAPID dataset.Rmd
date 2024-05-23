@@ -84,6 +84,8 @@ transformed.data <- combined.patient.data %>% select(-contains('File_ID')) %>%
 
 #choose markers to use downstream for MEM calculations
 chosen.markers <- transformed.data %>% select(contains('(v2)') | contains('CycinB1'))
+chosen.marker.idxs <- c(4, 6, 8:9, 13, 15, 17:18, 20:21, 23:26, 28:37, 39)
+print(colnames(combined.patient.data[chosen.marker.idxs]))
 
 #select tsne indices
 tsne.data <- combined.patient.data[46:47]
@@ -173,8 +175,6 @@ load(paste0(output.path, 'num patients.RData'))
 ```
 
 ```{r plot VR-Claw results}
-start_time <- Sys.time()
-
 #create output folders
 dir.create(paste0(output.path, '/unfiltered'))
 dir.create(paste0(output.path, '/filtered'))
@@ -186,7 +186,7 @@ VR.Claw.plot <- VR_Claw_plot_fxn(tsne.data, x_idx=2, y_idx=1, survival_stats=cox
 print(VR.Claw.plot)
 
 #export
-png(paste0(output.path, '/unfiltered/', strftime(Sys.time(), "%Y-%m-%d"), " original_VR-Claw_plot.png"),
+png(paste0(output.path, '/unfiltered/', strftime(Sys.time(), "%Y-%m-%d"), " original VR-Claw plot.png"),
     res = 200, width = 1500, height = 1500)
 print(VR.Claw.plot)
 dev.off()
@@ -195,7 +195,8 @@ dev.off()
 ```{r dbscan clustering}
 #add VR-Claw results to cell data
 marker.tsne.data <- cbind(combined.patient.data[,c(1:43, 48)], tsne.data) 
-all.data <- left_join(marker.tsne.data, plotting.data[,c(1,2,4,5)], 
+colnames(VR.Claw.plot[["data"]])[1:2] <- c('tSNE1', 'tSNE2')
+all.data <- left_join(marker.tsne.data, VR.Claw.plot[["data"]][,c(1,2,4,5)], 
                       by=join_by(tSNE1, tSNE2))
   
 
@@ -209,7 +210,7 @@ dbscan.plot.01 <- dbscan_plot_fxn(regions.of.interest.01, x_idx=46, y_idx=45,
                                   plot.title='DBSCAN Clusters (p<0.01)',
                                   xlab='t-SNE2', ylab='t-SNE1', axis_lim=100)
 #export
-png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), " DBSCAN_p0.01_plot.png"),
+png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), " DBSCAN_p0.01.png"),
     res = 200, width = 2000, height = 2000)
 print(dbscan.plot.01)
 dev.off()
@@ -225,7 +226,7 @@ dbscan.plot.05 <- dbscan_plot_fxn(regions.of.interest.05, x_idx=46, y_idx=45,
                                   plot.title='DBSCAN Clusters (p<0.05)',
                                   xlab='t-SNE2', ylab='t-SNE1', axis_lim=100)
 #export
-png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), " DBSCAN_p0.05_plot.png"),
+png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), " DBSCAN_p0.05.png"),
     res = 200, width = 2000, height = 2000)
 print(dbscan.plot.05)
 dev.off()
@@ -239,15 +240,16 @@ dbscan.plot <- dbscan_plot_fxn(combined.clusters, x_idx=46, y_idx=45,
                                   xlab='t-SNE2', ylab='t-SNE1', axis_lim=100)
 print(dbscan.plot)
 #export
-png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), " DBSCAN_combined_plot.png"),
+png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), " DBSCAN_all clusters.png"),
     res = 200, width = 2000, height = 2000)
 print(dbscan.plot)
 dev.off()
   
 #add clusters, num.patients.per.cluster, and status to all.data
 all.data <- left_join(all.data, combined.clusters) 
-all.data$cluster <- as.factor(all.data$cluster)
 all.data[is.na(all.data)] <- 0 #replace cluster NAs with 0s
+all.data$cluster <- as.factor(all.data$cluster)
+save(all.data, file=paste0(output.path, '/survival data.RData'))
 ```
 
 ```{r cluster survival analysis}
@@ -256,23 +258,19 @@ patient.subsets <- split(all.data, all.data$File_ID)
   
 #determine cluster abundance for each patient
 patient.abundance <- patient_cluster_abundance(patient.subsets)
-#export  
-write.csv(patient.abundance, paste0(output.path, '/unfiltered/',
-                                  strftime(Sys.time(),"%Y-%m-%d"),
-                                  " original_cluster_patient_abundances.csv"))
 
-
-#cox proportional hazards model
+#cox proportional hazards model for each cluster
 cluster.survival.analysis <- cox_ph_cluster_fxn(patient.abundance)
 survival.plots <- cluster.survival.analysis[[1]]
-pval.list <- cluster.survival.analysis[[2]]
-HR.list <- cluster.survival.analysis[[3]]
+prognostic.clusters <- cluster.survival.analysis[[2]]
+pval.list <- cluster.survival.analysis[[3]]
+HR.list <- cluster.survival.analysis[[4]]
 #export
 ggexport(survival.plots, filename = paste0(output.path, '/unfiltered/',
          strftime(Sys.time(),"%Y-%m-%d"), " survival plots.pdf"), 
          width = 7.2, height = 5.4)
   
-  
+
 #count cells per cluster
 all.clusters <- split(combined.clusters, as.factor(combined.clusters$cluster))
 cluster.stats  <- as.data.frame(sapply(all.clusters, NROW))
@@ -284,268 +282,138 @@ cluster.stats$HR <- HR.list
   
 #export
 write.csv(cluster.stats,paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), 
-                               " original_DBSCAN_cluster_counts_and_stats.csv"))
+                               " DBSCAN cluster stats.csv"))
 ```
 
-```{r population survival plots}
-  #patient level survival plots
-  #GNP
-  #calculate GNP status
-  GNP.clusters <- all.subset.abundances[,as.character(unique(combined.clusters[which(combined.clusters$status=="p<0.01 HR>1" | combined.clusters$status=="p<0.05 HR>1"),'cluster']))]
-  rownames(GNP.clusters) <- OS.data$Patient.ID
-  GNP.clusters$sum <- rowSums(GNP.clusters)
-  GNP.abundance.IQR <- IQR(GNP.clusters$sum)
-  GNP.clusters$group <- ifelse(GNP.clusters$sum>=GNP.abundance.IQR, -1, 0)
-  Group <- factor(GNP.clusters$group, levels = c(-1, 0), labels = c("GNP-High", "GNP-Low"))
-  factored.data <- cbind(OS.data, Group) #select OS Time, OS Status and Group
-  
-  #calculate cox proportional hazards model 
-  model.to.plot <- survfit(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #graphing data
-  model.for.stats <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #Cox PH Model
-  model.stats <- summary(model.for.stats) #summarize cox ph
-  
-  #access interesting stats from Cox PH Model
-  pval <- round(model.stats[["coefficients"]][,'Pr(>|z|)'], 3)
-  HR <- round(1/model.stats[["coefficients"]][,'exp(coef)'], 3)
-  CI <- paste0('[', round(1/model.stats[["conf.int"]][,4], 2), ',', 
-               round(1/model.stats[["conf.int"]][,3], 2), ']')
-  
-  #plot
-  GNP.plot <- ggsurvplot(model.to.plot, data=factored.data, risk.table=T,
-                         legend.labs = c("GNP-high", "GNP-Low"), legend.title = "Group",
-                         censor.shape=124, palette=c('darkred','black'))
-  GNP.plot$plot <- GNP.plot$plot + annotate("text", x=Inf, y=Inf, vjust=1, hjust=1, size=5,
-                                            label=paste0('p-value = ', pval, '
-                                                         HR = ', HR, '
-                                                         95% CI ', CI)) #annotate with stats
-  # GNP.plot
+```{r original population survival plots}
+#select GNP cells
+GNP.clusters <- patient.abundance[,as.character(unique(combined.clusters[which(combined.clusters$status=="p<0.01 HR>1" | combined.clusters$status=="p<0.05 HR>1"),'cluster']))]
+rownames(GNP.clusters) <- OS.data$Patient.ID
 
-  #export
-  png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), ' original_GNP survival plot.png'), height=1000, width=1000, res=200)
-  print(GNP.plot)
-  dev.off()
-  write.csv(GNP.clusters, paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), ' original GNP Classification.csv'))
+#GNP survival analysis
+GNP.analysis <- pop_survival_analysis(GNP.clusters, 'GNP', c('black','darkred'))
+GNP.clusters <- GNP.analysis[[1]]
+GNP.plot <- GNP.analysis[[2]]
+print(GNP.plot)
+#export
+png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), ' original_GNP survival plot.png'), 
+    height=1000, width=1000, res=200)
+print(GNP.plot)
+dev.off()
+write.csv(GNP.clusters, paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), ' original GNP Classification.csv'))
   
-  #GPP
-  #calculate GPP status
-  GPP.clusters <- all.subset.abundances[,as.character(unique(combined.clusters[which(combined.clusters$status=="p<0.01 HR<1" | combined.clusters$status=="p<0.05 HR<1"),'cluster']))]
-  rownames(GPP.clusters) <- OS.data$Patient.ID
-  GPP.clusters$sum <- rowSums(GPP.clusters)
-  GPP.abundance.IQR <- IQR(GPP.clusters$sum)
-  GPP.clusters$group <- ifelse(GPP.clusters$sum>=GPP.abundance.IQR, 1, 0)
-  Group <- factor(GPP.clusters$group, levels = c(0, 1), labels = c("GPP-Low", "GPP-High"))
-  factored.data <- cbind(OS.data, Group) #select OS Time, OS Status and Group
-  
-  #calculate cox proportional hazards model 
-  model.to.plot <- survfit(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #graphing data
-  model.for.stats <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #Cox PH Model
-  model.stats <- summary(model.for.stats) #summarize cox ph
-  
-  #access interesting stats from Cox PH Model
-  pval <- round(model.stats[["coefficients"]][,'Pr(>|z|)'], 3)
-  HR <- round(model.stats[["coefficients"]][,'exp(coef)'], 3)
-  CI <- paste0('[', round(model.stats[["conf.int"]][,3], 2), ',', 
-               round(model.stats[["conf.int"]][,4], 2), ']')
-  
-  #plot
-  GPP.plot <- ggsurvplot(model.to.plot, data=factored.data, risk.table=T,
-                         legend.labs = c("GPP-Low", "GPP-High"), legend.title = "Group",
-                         censor.shape=124, palette=c('black','darkblue'))
-  GPP.plot$plot <- GPP.plot$plot + annotate("text", x=Inf, y=Inf, vjust=1, hjust=1, size=5,
-                                            label=paste0('p-value = ', pval, '
-                                                         HR = ', HR, '
-                                                         95% CI ', CI)) #annotate with stats
-  # GPP.plot
 
-  #export
-  png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), ' original_GPP survival plot.png'), height=1000, width=1000, res=200)
-  print(GPP.plot)
-  dev.off()
-  write.csv(GPP.clusters, paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), ' original GPP Classification.csv'))
+#select GPP cells
+GPP.clusters <- patient.abundance[,as.character(unique(combined.clusters[which(combined.clusters$status=="p<0.01 HR<1" | combined.clusters$status=="p<0.05 HR<1"),'cluster']))]
+rownames(GPP.clusters) <- OS.data$Patient.ID
+
+#GPP survival analysis
+GPP.analysis <- pop_survival_analysis(GPP.clusters, 'GPP', c('black','darkblue'))
+GPP.clusters <- GPP.analysis[[1]]
+GPP.plot <- GPP.analysis[[2]]
+print(GPP.plot)
+#export
+png(paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), ' original_GPP survival plot.png'), 
+    height=1000, width=1000, res=200)
+print(GPP.plot)
+dev.off()
+write.csv(GPP.clusters, paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), ' original GPP Classification.csv'))
 ```
 
 ```{r filtering}
-  
-  #FILTERING
-  combined.clusters <- combined.clusters[which(combined.clusters$cluster %in% final.prog.clusters),]
-  #filter out clusters with too few cells
-  #count cells per cluster
-  all.clusters <- split(combined.clusters, as.factor(combined.clusters$cluster))
-  cluster.stats  <- as.data.frame(sapply(all.clusters, NROW))
-  
-  #remove any clusters that have fewer than the minimum number of cells
-  suitable.cluster.list <- c()
-  for (r in 1:nrow(cluster.stats)){ #loop through rows (clusters)
-    if (cluster.stats[r,1] >= min.cells.per.cluster){ #check if cluster has at least minimum cells
-      suitable.cluster.list <- c(suitable.cluster.list, rownames(cluster.stats)[r])
-    }
-  }
-  #refined clusters meet the minimum cell number requirement
-  refined.clusters <- combined.clusters[which(combined.clusters$cluster %in% suitable.cluster.list),]
-  
-  #integrate with other data
-  all.data <- left_join(all.data[,1:48], refined.clusters) 
-  all.data[is.na(all.data)] <- 0 #replace cluster NAs with 0s
-  
-  
-  
-  #filtered VRPTR plot
-  #remove clusters that are no longer significant (set cluster number to 0)
-  filtered.data <- all.data
-  filtered.data[which(!(filtered.data$cluster %in% final.prog.clusters)), 'cluster'] <- 0
-  filtered.data[which(filtered.data$cluster == 0), 'status'] <- 'p>0.1'
-  
-  #plot
-  filtered.plotting.data <- data.frame(tSNE2=filtered.data$tSNE2, 
-                                       tSNE1=filtered.data$tSNE1, 
-                                       cluster=filtered.data$cluster, 
-                                       status=filtered.data$status)
-  
-  #get maximum x and y values to set the scales
-  max_x = max(c(max(filtered.plotting.data$tSNE2),abs(min(filtered.plotting.data$tSNE2))))
-  max_y = max(c(max(filtered.plotting.data$tSNE1),abs(min(filtered.plotting.data$tSNE1))))
-  
-  #reorder data so the significant cells are displayed on top
-  light.grey.cells <- filtered.plotting.data[which(filtered.plotting.data$status=="p>0.1"),]
-  dark.grey.cells <- filtered.plotting.data[which(filtered.plotting.data$status=="p<0.1 HR>1" | filtered.plotting.data$status=="p<0.1 HR<1"),]
-  light.red.cells <- filtered.plotting.data[which(filtered.plotting.data$status=="p<0.05 HR>1"),]
-  dark.red.cells <- filtered.plotting.data[which(filtered.plotting.data$status=="p<0.01 HR>1"),]
-  light.blue.cells <- filtered.plotting.data[which(filtered.plotting.data$status=="p<0.05 HR<1"),]
-  dark.blue.cells <- filtered.plotting.data[which(filtered.plotting.data$status=="p<0.01 HR<1"),]
-  to.plot <- rbind(light.grey.cells, dark.grey.cells, 
-                         light.red.cells, light.blue.cells, 
-                         dark.red.cells, dark.blue.cells)
-  
-  #plot
-  filtered_VRPTR_plot <- ggplot(to.plot) + geom_point(aes(x=to.plot[,1], 
-                                                              y=to.plot[,2], 
-                                                     col = as.factor(to.plot$status))) + 
-                        scale_color_manual(values = col.palette) + 
-                        guides(colour = guide_legend(override.aes = list(size=5))) + 
-                        theme_bw() + theme(panel.grid.major = element_blank(), 
-                                           panel.grid.minor = element_blank()) + 
-                        labs(color = "Prognostic Subsets", x = "t-SNE2", y = "t-SNE1", 
-                             title = paste("Filtered VRPTR Prognostic Populations, k=", kval)) +
-                        ylim(-max_y,max_y) +xlim(-max_x,max_x) + coord_fixed(ratio = 1)
-  # filtered_VRPTR_plot
+#select populations that are significantly associates with survival following clustering
+sig.clusters <- combined.clusters[which(combined.clusters$cluster %in% final.prog.clusters),]
 
-  #export
-  png(paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), " filtered_VRPTR_plot.png"),
-      res = 200, width = 1500, height = 1500)
-  print(filtered_VRPTR_plot)
-  dev.off()
+#count cells per cluster
+split.sig.clusters <- split(sig.clusters, as.factor(sig.clusters$cluster))
+sig.cluster.stats  <- as.data.frame(sapply(split.sig.clusters, NROW))
+  
+#remove any clusters that have fewer than the minimum number of cells
+cluster.list <- c()
+for (r in 1:nrow(sig.cluster.stats)){ #loop through rows (clusters)
+  if (sig.cluster.stats[r,1] >= min.cells.per.cluster){ #check if cluster has at least minimum cells
+    cluster.list <- c(cluster.list, rownames(sig.cluster.stats)[r])
+  }
+}
+#refined clusters meet the minimum cell number requirement
+filtered.clusters <- sig.clusters[which(sig.clusters$cluster %in% cluster.list),]
+
+#integrate with other data
+filtered.data <- left_join(all.data[,1:48], filtered.clusters) 
+filtered.data[is.na(filtered.data)] <- 0 #replace cluster NAs with 0s
+  
+  
+#remove clusters that are no longer significant (set cluster number to 0)
+filtered.data[which(!(filtered.data$cluster %in% final.prog.clusters)), 'cluster'] <- 0
+filtered.data[which(filtered.data$cluster == 0), 'status'] <- 'p>0.1'
+  
+#filtered VR-Claw Plot
+filtered.VR.Claw.plot <- VR_Claw_plot_fxn(tsne.data, x_idx=2, y_idx=1, survival_stats=filtered.data, 
+                                 plot.title='Filtered VR-Claw Prognostic Populations', 
+                                 xlab='t-SNE 2', ylab='t-SNE 1')
+print(filtered.VR.Claw.plot)
+#export
+png(paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), " filtered VR-Claw plot.png"),
+    res = 200, width = 1500, height = 1500)
+print(filtered.VR.Claw.plot)
+dev.off()
+save(filtered.data, file=paste0(output.path, '/filtered survival data.RData'))
 ```
   
-```{r population survival plots}
-  
-  #patient level survival plots
-  #GNP
-  #calculate GNP status
-  GNP.clusters <- as.data.frame(all.subset.abundances[,as.character(unique(filtered.data[which(filtered.data$status=="p<0.01 HR>1" | filtered.data$status=="p<0.05 HR>1"),'cluster']))])
-  GNP.clusters$sum <- rowSums(GNP.clusters)
-  GNP.abundance.IQR <- IQR(GNP.clusters$sum)
-  GNP.clusters$group <- ifelse(GNP.clusters$sum>=GNP.abundance.IQR, -1, 0)
-  Group <- factor(GNP.clusters$group, levels = c(-1, 0), labels = c("GNP-High", "GNP-Low"))
-  factored.data <- cbind(OS.data, Group) #select OS Time, OS Status and Group
-  
-  #calculate cox proportional hazards model 
-  model.to.plot <- survfit(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #graphing data
-  model.for.stats <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #Cox PH Model
-  model.stats <- summary(model.for.stats) #summarize cox ph
-  
-  #access interesting stats from Cox PH Model
-  pval <- round(model.stats[["coefficients"]][,'Pr(>|z|)'], 3)
-  HR <- round(1/model.stats[["coefficients"]][,'exp(coef)'], 3)
-  CI <- paste0('[', round(1/model.stats[["conf.int"]][,4], 2), ',', 
-               round(1/model.stats[["conf.int"]][,3], 2), ']')
-  
-  #plot
-  GNP.plot <- ggsurvplot(model.to.plot, data=factored.data, risk.table=T,
-                         legend.labs = c("GNP-high", "GNP-Low"), legend.title = "Group",
-                         censor.shape=124, palette=c('darkred','black'))
-  GNP.plot$plot <- GNP.plot$plot + annotate("text", x=Inf, y=Inf, vjust=1, hjust=1, size=5,
-                                            label=paste0('p-value = ', pval, '
-                                                         HR = ', HR, '
-                                                         95% CI ', CI)) #annotate with stats
-  # GNP.plot
+```{r population survival plots on filtered data}
+#select GNP cells
+GNP.clusters <- patient.abundance[,as.character(unique(filtered.data[which(filtered.data$status=="p<0.01 HR>1" | filtered.data$status=="p<0.05 HR>1"),'cluster']))]
+rownames(GNP.clusters) <- OS.data$Patient.ID
 
-  #export
-  png(paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), ' FILTERED_GNP survival plot.png'), height=1000, width=1000, res=200)
-  print(GNP.plot)
-  dev.off()
-  write.csv(GNP.clusters, paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), ' filtered GNP Classification.csv'))
+#GNP survival analysis
+GNP.analysis <- pop_survival_analysis(GNP.clusters, 'GNP', c('black','darkred'))
+GNP.clusters <- GNP.analysis[[1]]
+GNP.plot <- GNP.analysis[[2]]
+print(GNP.plot)
+#export
+png(paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), ' filtered GNP survival plot.png'), 
+    height=1000, width=1000, res=200)
+print(GNP.plot)
+dev.off()
+write.csv(GNP.clusters, paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), ' filtered GNP Classification.csv'))
 
-  #GPP
-  #calculate GPP status
-  GPP.clusters <- as.data.frame(all.subset.abundances[,as.character(unique(filtered.data[which(filtered.data$status=="p<0.01 HR<1" | filtered.data$status=="p<0.05 HR<1"),'cluster']))])
-  GPP.clusters$sum <- rowSums(GPP.clusters)
-  GPP.abundance.IQR <- IQR(GPP.clusters$sum)
-  GPP.clusters$group <- ifelse(GPP.clusters$sum>=GPP.abundance.IQR, 1, 0)
-  Group <- factor(GPP.clusters$group, levels = c(0, 1), labels = c("GPP-Low", "GPP-High"))
-  factored.data <- cbind(OS.data, Group) #select OS Time, OS Status and Group
-  
-  #calculate cox proportional hazards model 
-  model.to.plot <- survfit(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #graphing data
-  model.for.stats <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=factored.data) #Cox PH Model
-  model.stats <- summary(model.for.stats) #summarize cox ph
-  
-  #access interesting stats from Cox PH Model
-  pval <- round(model.stats[["coefficients"]][,'Pr(>|z|)'], 3)
-  HR <- round(model.stats[["coefficients"]][,'exp(coef)'], 3)
-  CI <- paste0('[', round(model.stats[["conf.int"]][,3], 2), ',', 
-               round(model.stats[["conf.int"]][,4], 2), ']')
 
-  #plot
-  GPP.plot <- ggsurvplot(model.to.plot, data=factored.data, risk.table=T,
-                         legend.labs = c("GPP-Low", "GPP-High"), legend.title = "Group",
-                         censor.shape=124, palette=c('black','darkblue'))
-  GPP.plot$plot <- GPP.plot$plot + annotate("text", x=Inf, y=Inf, vjust=1, hjust=1, size=5,
-                                            label=paste0('p-value = ', pval, '
-                                                         HR = ', HR, '
-                                                         95% CI ', CI)) #annotate with stats
-  # GPP.plot
+#select GPP cells
+GPP.clusters <- patient.abundance[,as.character(unique(filtered.data[which(filtered.data$status=="p<0.01 HR<1" | filtered.data$status=="p<0.05 HR<1"),'cluster']))]
+rownames(GPP.clusters) <- OS.data$Patient.ID
 
-  #export
-  png(paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), ' FILTERED_GPP survival plot.png'), height=1000, width=1000, res=200)
-  print(GPP.plot)
-  dev.off()
-  write.csv(GPP.clusters, paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), ' filtered GPP Classification.csv'))
-  
+#GPP survival analysis
+GPP.analysis <- pop_survival_analysis(GPP.clusters, 'GPP', c('black','darkblue'))
+GPP.clusters <- GPP.analysis[[1]]
+GPP.plot <- GPP.analysis[[2]]
+print(GPP.plot)
+#export
+png(paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), ' filtered GPP survival plot.png'), 
+    height=1000, width=1000, res=200)
+print(GPP.plot)
+dev.off()
+write.csv(GPP.clusters, paste0(output.path, '/filtered/', strftime(Sys.time(),"%Y-%m-%d"), ' filtered GPP Classification.csv'))
 ```
 
 ```{r MEM}
-  
-  
-  
-  #MEM on combined GNP GPP populations
-  setwd(paste0(output.path,'/filtered/'))
+setwd(output.path)
 
-  #create variable for markers to use in MEM
-  GNP.cells <- filtered.data[which(filtered.data$cluster %in% colnames(GNP.clusters)), 
-                             c(4, 6, 8:9, 13, 15, 17:18, 20:21, 23:26, 28:37, 39, ncol(filtered.data))]
-  GNP.cells$cluster <- -1
-  GPP.cells <- filtered.data[which(filtered.data$cluster %in% colnames(GPP.clusters)), 
-                             c(4, 6, 8:9, 13, 15, 17:18, 20:21, 23:26, 28:37, 39, ncol(filtered.data))]
-  GPP.cells$cluster <- 1
-  MEM.data <- rbind(GNP.cells, GPP.cells)
-  colnames(MEM.data)[ncol(MEM.data)] <- "cluster"
-  MEM.data$cluster <- as.numeric(as.character(MEM.data$cluster))
-  MEM.data <- MEM.data[order(MEM.data$cluster),]
+#create variable for markers to use in MEM
+GNP.cells <- filtered.data[which(filtered.data$cluster %in% colnames(GNP.clusters)), 
+                           c(chosen.marker.idxs, ncol(filtered.data))]
+GPP.cells <- filtered.data[which(filtered.data$cluster %in% colnames(GPP.clusters)), 
+                           c(chosen.marker.idxs, ncol(filtered.data))]
+MEM.data <- rbind(GNP.cells, GPP.cells)
+colnames(MEM.data)[ncol(MEM.data)] <- "cluster"
+MEM.data$cluster <- as.numeric(as.character(MEM.data$cluster))
+MEM.data <- MEM.data[order(MEM.data$cluster),]
 
-  #calculate MEM scores
-  MEM.values <- MEM(MEM.data, transform = TRUE, cofactor = 5,
-                    zero.ref = TRUE, new.marker.names = "CyclinB1, TUJ1, CD117, S100B, CD34, pSTAT5, pAKT, pSTAT1, CD56, pp38, pSTAT3, CD49F, CD133, PDGFRA, SOX2, CD15, EGFR, pNFkB, CD171, Nestin, CD44, GFAP, pERK, pS6, HLADR")
-  # build MEM heatmap and output enrichment scores
-  build_heatmaps(MEM.values, display.thresh = 1, output.files = TRUE,
-                 cluster.MEM = "none", cluster.medians = "none", cluster.IQRs = "none")
-  setwd(og.wd)
-  
-  #check time
-  total_time <- Sys.time() - start_time
-  time_diff <- paste(total_time, attr(total_time, 'units')) 
-  print(time_diff)
-  write.table(time_diff, file=paste0(output.path, '/time elapsed for results_k=', kval, '.txt'))
-
+#calculate MEM scores
+MEM.values <- MEM(MEM.data, transform = TRUE, cofactor = 5,
+                  zero.ref = TRUE, new.marker.names = "CyclinB1, TUJ1, CD117, S100B, CD34, pSTAT5, pAKT, pSTAT1, CD56, pp38, pSTAT3, CD49F, CD133, PDGFRA, SOX2, CD15, EGFR, pNFkB, CD171, Nestin, CD44, GFAP, pERK, pS6, HLADR")
+# build MEM heatmap and output enrichment scores
+build_heatmaps(MEM.values, display.thresh = 0, output.files = TRUE,
+               cluster.MEM = "none", cluster.medians = "none", cluster.IQRs = "none")
 ```
 
 ```{r export as fcs}
