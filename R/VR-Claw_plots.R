@@ -60,3 +60,5 @@ VR_Claw_plot_fxn <- function(df=data.for.KNN, #data used for KNN
   
   return(Claw_plot)
 }
+
+#population survival plots

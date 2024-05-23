@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # BiocManager::install("Biobase")
 # install.packages("survival", repos = "http://cran.us.r-project.org")
 # install.packages("survminer", repos = "http://cran.us.r-project.org")
-# #install.packages("plyr", repos = "http://cran.us.r-project.org")
+# install.packages("plyr", repos = "http://cran.us.r-project.org")
 # install.packages("cowplot", repos = "http://cran.us.r-project.org")
 # install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
 # install.packages("FNN", repos = "http://cran.us.r-project.org")
@@ -34,12 +34,12 @@ suppressPackageStartupMessages({#library(devtools)
                                 library(cytoMEM)
                                 library(tidyverse)
                                 library(dplyr)
-                                #library(ggpubr)
+                                # library(ggpubr)
                                 library(flowCore)
                                 library(Biobase)
                                 library(survival)
                                 library(survminer)
-                                #library(plyr)
+                                library(plyr)
                                 library(cowplot)
                                 library(RColorBrewer)
                                 library(FNN)
@@ -250,96 +250,41 @@ all.data$cluster <- as.factor(all.data$cluster)
 all.data[is.na(all.data)] <- 0 #replace cluster NAs with 0s
 ```
 
-```{r cluster survival plots}
+```{r cluster survival analysis}
 #split data by patient ID
-
 patient.subsets <- split(all.data, all.data$File_ID)
   
-  #calculate the percentage of each patient's cells in each cluster - make sure the cluster column is a factor!!!
-  subset.abundance <- list()
-  for (p in 1:length(patient.subsets)){ #looping over p = patients
-    subset.abundance[[p]] = (summary(patient.subsets[[p]][,'cluster']))*100/nrow(patient.subsets[[p]]) #cell abundance in each cluster
-  }
-  all.subset.abundances = ldply(subset.abundance,rbind)  #dataframe of patient cell abundance in each cluster
-  all.subset.abundances[is.na(all.subset.abundances)]<-0 
+#determine cluster abundance for each patient
+patient.abundance <- patient_cluster_abundance(patient.subsets)
+#export  
+write.csv(patient.abundance, paste0(output.path, '/unfiltered/',
+                                  strftime(Sys.time(),"%Y-%m-%d"),
+                                  " original_cluster_patient_abundances.csv"))
+
+
+#cox proportional hazards model
+cluster.survival.analysis <- cox_ph_cluster_fxn(patient.abundance)
+survival.plots <- cluster.survival.analysis[[1]]
+pval.list <- cluster.survival.analysis[[2]]
+HR.list <- cluster.survival.analysis[[3]]
+#export
+ggexport(survival.plots, filename = paste0(output.path, '/unfiltered/',
+         strftime(Sys.time(),"%Y-%m-%d"), " survival plots.pdf"), 
+         width = 7.2, height = 5.4)
   
-  #split patients into HIGH/LOW for each cluster by comparing to the cluster's abundance IQR value
-  single.subset.abundance.data <- list()
-  abundance.groups <- list()
-  for(c in 1:ncol(all.subset.abundances)){ # looping over c = cluster
-    abundance.IQR <- IQR(all.subset.abundances[,c]) #cluster's abundance IQR value
-    abundance.groups[[c]] <- (all.subset.abundances[,c]>abundance.IQR) #TRUE=abundance greater than the IQR
-    abundance.groups[[c]][abundance.groups[[c]]==TRUE] = 1 # 1 = high, 0 = low
-  }             
   
-  #Cox proportional hazards model
-  cox.cluster.summary<- list()
-  for (s in 1:ncol(all.subset.abundances)){ #looping over s = cluster
-    Group <- factor(abundance.groups[[s]], levels = c(0,1), labels = c("Low", "High"))
-    group.survival.data <- cbind(OS.data, Group)
-    coxph.cluster.model <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=group.survival.data)
-    cox.cluster.summary[[colnames(all.subset.abundances)[s]]] <- summary(coxph.cluster.model)
-  }
-  #export
-  write.csv(all.subset.abundances,paste(output.path, '/unfiltered/', 
-                                        strftime(Sys.time(),"%Y-%m-%d"),
-                                        " original_cluster_subset_abundances.csv",sep =""))
+#count cells per cluster
+all.clusters <- split(combined.clusters, as.factor(combined.clusters$cluster))
+cluster.stats  <- as.data.frame(sapply(all.clusters, NROW))
+colnames(cluster.stats)<- "total_counts"
   
-  #plotting info
-  survival.plots <- list()
-  final.prog.clusters <- c()
-  pval.list <- c()
-  HR.list <- c()
-  for (s in 2:ncol(all.subset.abundances)){ #start at 2 to exclude non VR clusters
-    if (colnames(all.subset.abundances)[s]!="(Other)"){
-      cox.cluster.coefficients = cox.cluster.summary[[s]]$coefficients
-      CI = cox.cluster.summary[[s]]$conf.int
-      Group = factor(abundance.groups[[s]], levels = c(0,1), labels = c("Low", "High"))
-      group.survival.data = cbind(OS.data, Group)
-      coxph.model <- survfit(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=group.survival.data)
-      #display cluster stats
-      cluster.title <- paste0("Subset #", colnames(all.subset.abundances)[s], " (p = ", 
-                              round(cox.cluster.coefficients[,5],3), ", HR = ",
-                              round(cox.cluster.coefficients[,2],3), ", CI[",
-                              round(CI[,3],3),",",round(CI[,4],3),"])")
-      pval.list <- c(pval.list, cox.cluster.summary[[s]][["coefficients"]][,5])
-      HR.list <- c(HR.list, cox.cluster.summary[[s]][["coefficients"]][,2])
-      #plot significant clusters
-      if (cox.cluster.coefficients[,5] <= pval.cutoff){
-        final.prog.clusters <- c(final.prog.clusters, colnames(all.subset.abundances)[s])
-      }
-      survival.plots[[s]] <- ggsurvplot(coxph.model, 
-                                        data=group.survival.data, 
-                                        conf.int=F, 
-                                        pval=F, 
-                                        risk.table=T, 
-                                        tables.y.text = FALSE, 
-                                        legend.labs = c("Low", "High"), 
-                                        legend.title = "Group",
-                                        censor.shape=124,
-                                        title = cluster.title)
-    }
-  }
-  # survival.plots
+#add survival stats
+cluster.stats$pval <- pval.list
+cluster.stats$HR <- HR.list
   
-  #export
-  ggexport(survival.plots, filename = paste0(output.path, '/unfiltered/',
-           strftime(Sys.time(),"%Y-%m-%d"), " survival plots_k=", i,".pdf"), 
-           width = 7.2, height = 5.4)
-  
-  #calculate cluster stats
-  #count cells per cluster from dbscan
-  all.clusters <- split(combined.clusters, as.factor(combined.clusters$cluster))
-  cluster.stats  <- as.data.frame(sapply(all.clusters, NROW))
-  colnames(cluster.stats)<- "total_counts"
-  
-  #add survival stats
-  cluster.stats$pval <- pval.list
-  cluster.stats$HR <- HR.list
-  
-  #export
-  write.csv(cluster.stats,paste(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), " original_DBSCAN_cluster_counts_and_stats.csv",sep =""))
-  # print(cluster.stats)
+#export
+write.csv(cluster.stats,paste0(output.path, '/unfiltered/', strftime(Sys.time(),"%Y-%m-%d"), 
+                               " original_DBSCAN_cluster_counts_and_stats.csv"))
 ```
 
 ```{r population survival plots}

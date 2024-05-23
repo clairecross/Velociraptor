@@ -52,3 +52,72 @@ dbscan_fxn <- function(df, embedding_idxs, sig_level, epsilon, minPoints){
   
   return(df)
 }
+
+#cluster_survival_analysis
+patient_cluster_abundance <- function(patient.list){
+  #calculate the percentage of each patient's cells in each cluster 
+  subset.abundance <- list()
+  for (p in 1:length(patient.list)){ #looping over p = patients
+    subset.abundance[[p]] = (summary(patient.list[[p]][,'cluster']))*100/nrow(patient.list[[p]]) #cell abundance in each cluster
+  }
+  all.subset.abundances = ldply(subset.abundance, rbind)  #dataframe of patient cell abundance in each cluster
+  all.subset.abundances[is.na(all.subset.abundances)]<-0 
+  
+  return(all.subset.abundances)
+}
+
+#Cox proportional hazards on clusters
+cox_ph_cluster_fxn <- function(all.subset.abundances){
+  #split patients into HIGH/LOW for each cluster by comparing to the cluster's abundance IQR value
+  abundance.groups <- list()
+  for(c in 1:ncol(all.subset.abundances)){ # looping over c = cluster
+    abundance.IQR <- IQR(all.subset.abundances[,c]) #cluster's abundance IQR value
+    abundance.groups[[c]] <- (all.subset.abundances[,c]>abundance.IQR) #TRUE=abundance greater than the IQR
+    abundance.groups[[c]][abundance.groups[[c]]==TRUE] = 1 # 1 = high, 0 = low
+  }   
+  #Cox proportional hazards model
+  cox.cluster.summary <- list()
+  for (s in 1:ncol(all.subset.abundances)){ #looping over s = cluster
+    Group <- factor(abundance.groups[[s]], levels = c(0,1), labels = c("Low", "High"))
+    group.survival.data <- cbind(OS.data, Group)
+    coxph.cluster.model <- coxph(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=group.survival.data)
+    cox.cluster.summary[[colnames(all.subset.abundances)[s]]] <- summary(coxph.cluster.model)
+  }
+  
+  #plotting info
+  survival.plots <- list()
+  final.prog.clusters <- c()
+  pval.list <- c()
+  HR.list <- c()
+  for (s in 2:ncol(all.subset.abundances)){ #start at 2 to exclude non VR clusters
+    if (colnames(all.subset.abundances)[s]!="(Other)"){
+      cox.cluster.coefficients <- cox.cluster.summary[[s]]$coefficients
+      CI <- cox.cluster.summary[[s]]$conf.int
+      Group <- factor(abundance.groups[[s]], levels = c(0,1), labels = c("Low", "High"))
+      group.survival.data <- cbind(OS.data, Group)
+      coxph.model <- survfit(Surv(OS.data[,clinical_col], OS.data[,status_col]) ~ Group, data=group.survival.data)
+      #display cluster stats
+      cluster.title <- paste0("Subset #", colnames(all.subset.abundances)[s], " (p = ", 
+                              round(cox.cluster.coefficients[,5],3), ", HR = ",
+                              round(cox.cluster.coefficients[,2],3), ", CI[",
+                              round(CI[,3],3),",",round(CI[,4],3),"])")
+      pval.list <- c(pval.list, cox.cluster.summary[[s]][["coefficients"]][,5])
+      HR.list <- c(HR.list, cox.cluster.summary[[s]][["coefficients"]][,2])
+      #plot significant clusters
+      if (cox.cluster.coefficients[,5] <= pval.cutoff){
+        final.prog.clusters <- c(final.prog.clusters, colnames(all.subset.abundances)[s])
+      }
+      survival.plots[[s-1]] <- ggsurvplot(coxph.model, 
+                                        data=group.survival.data, 
+                                        conf.int=F, 
+                                        pval=F, 
+                                        risk.table=T, 
+                                        tables.y.text = FALSE, 
+                                        legend.labs = c("Low", "High"), 
+                                        legend.title = "Group",
+                                        censor.shape=124,
+                                        title = cluster.title)
+    }
+  }
+  return(list(survival.plots, pval.list, HR.list))
+}
