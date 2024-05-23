@@ -46,7 +46,7 @@ suppressPackageStartupMessages({library(Biobase)
                                 #library(gbutils)
                                 library(dbscan)
                                 library(scales)})
-source("./R/tSNE_plots.R")
+source("./R/general_plots.R")
 source("./R/VR-Eye_functions.R")
 source("./R/VR-Eye_plots.R")
 source('./R/tatarize_color_palette.R')
@@ -248,6 +248,10 @@ for (j in 1:length(goals)){
 ```
 
 ```{r similarity binning}
+#set similarity thresholds (optimized to identify GNP and GPP clusters found in RAPID)
+GNP.sim.threshold <- 83
+GPP.sim.threshold <- 82
+
 
 ```
 

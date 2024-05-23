@@ -33,3 +33,22 @@ nbh_analysis <- function(cp_df){
                        data=group.survival.data)
   return(summary(coxph.model))
 }
+
+#dbscan clustering
+dbscan_fxn <- function(df, embedding_idxs, sig_level, epsilon, minPoints){
+  #select embedding columns to cluster on
+  embedding <- df[,embedding_idxs]
+  
+  #cluster
+  dbscan.results <- dbscan::dbscan(embedding, eps = epsilon, minPts = minPoints)
+  df$cluster <- dbscan.results$cluster
+  
+  #remove noise cluster 0
+  df <- df[which(df$cluster!=0),]
+  
+  #rename clusters to include significance stats
+  df$cluster <- paste0(df$cluster, sig_level)
+  df$cluster <-as.numeric(df$cluster)
+  
+  return(df)
+}
