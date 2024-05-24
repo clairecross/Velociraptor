@@ -35,10 +35,10 @@ VR_Eye_sim_plot <- function(all.data, ref.label, min.sim=-1) {
   return(sim.plot)
 }
 
-VR_Eye_bin_plot <- function(all.data, ref.label) {
+VR_Eye_bin_plot <- function(all.data, ref.label, bins) {
   plot.data <- all.data[order(all.data$sim_bin), c("tSNE1","tSNE2","sim_bin")]
   plot.data$sim_bin <- as.factor(plot.data$sim_bin)
-  bin.colors <- colorRampPalette(c('lightgray','lightgreen','darkgreen'))(length(my.bins) + 1)
+  bin.colors <- colorRampPalette(c('lightgray','lightgreen','darkgreen'))(length(bins) + 1)
   names(bin.colors) <- levels(all.data$sim_bin)
   
   #calculate a ratio to make the t-SNE axes a square
