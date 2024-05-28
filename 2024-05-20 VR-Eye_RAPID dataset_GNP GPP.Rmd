@@ -37,14 +37,10 @@ suppressPackageStartupMessages({library(Biobase)
                                 library(cowplot)
                                 library(RColorBrewer)
                                 library(viridis)
-                                #library(data.table)
                                 library(stringr)
                                 library(FNN)
-                                #library(matrixStats)
                                 library(cytoMEM)
-                                #library(gplots)
-                                #library(gbutils)
-                                library(dbscan)
+                                library(ggbeeswarm)
                                 library(scales)})
 source("./R/general_plots.R")
 source("./R/VR-Eye_functions.R")
@@ -135,11 +131,13 @@ tsne.plot <- ggplot(tSNE.data) + geom_point(aes(x=tSNE2, y=tSNE1), color='lightg
               coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
 print(tsne.plot)
 
-# #plot cell density on t-SNE axes
-# tsne.dens.plot <- tsne_density(tSNE.data, export=TRUE, output_path=og.output.path)
-# 
-# #plot heat on markers
-# tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=8, export=TRUE, output_path=og.output.path)
+#plot cell density on t-SNE axes
+tsne.dens.plot <- tsne_density(tSNE.data, orientation=2, capt="Data from Leelatian & Sinnaeve et al., eLife. 2020", 
+                               export=TRUE, output_path=og.output.path)
+
+#plot heat on markers
+tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=8, orientation=2, 
+                                             export=TRUE, output_path=og.output.path)
 ```
 
 ```{r, set VR constants}
@@ -287,42 +285,65 @@ for(i in 1:length(sample.levels)){
                      round(num.GPP/num.cells*100, 2))
 }
 
+#reformat data
+to.plot <- pivot_longer(pop.stats, cols=c(4,5), names_to='Population', values_to='Percentage')
+to.plot$Percentage <- as.numeric(to.plot$Percentage)
+to.plot$Patient_ID <- factor(to.plot$Patient_ID, levels=c('LC06B', 'W11', 'LC26', 'RT-14', 'K01', 
+                                                          'LC04B', 'LC25', 'W2', 'W5', 'LC22', 
+                                                          'W12', 'W14', 'LC-27', 'RT01B', 'RT10', 
+                                                          'LC-21', 'W15', 'RT15', 'LC08A', 'LC11A', 
+                                                          'LC-18', 'W4', 'LC03A', 'LC09A', 'LC10B', 
+                                                          'RT-07', 'LC12A', 'LC02AB'))
 #plot
+abundance.plot <- ggplot(to.plot, aes(x=Patient_ID, y=Percentage, fill=Population)) + 
+                  geom_bar(stat='identity', position=position_dodge()) + theme_bw() +
+                  scale_fill_manual(values=c('GNP_percentage'='darkred', 'GPP_percentage'='darkblue'), 
+                                    labels=c('GNP_percentage'='GNP-like', 'GPP_percentage'='GPP-like')) + 
+                  labs(title='VR-identified Abundance of GNP-like and GPP-like Cells in the RAPID Dataset', 
+                       caption='Data from Leelatian and Sinnaeve et al., eLife, 2020', 
+                       y='Abundance (%)') + 
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
+                        panel.grid = element_blank()) 
+print(abundance.plot)
 
 #export
-png()
-print()
+png(paste0(og.output.path, 'GNP-like and GPP-like cell abundance_VR-Eye.png'), height=1000, width=1500, res=200)
+print(abundance.plot)
 dev.off()
-write.csv()
+write.csv(pop.stats, file=paste0(og.output.path, 'GNP-like and GPP-like cell abundance_VR-Eye.csv'))
 ```
 
 ```{r plot similarity axis per patient}
 #subtract GNP similarity from GPP similarity
-VR.Eye.data$GNP.minus.GPP <- VR.Eye.data$GNP_sim - VR.Eye.data$GPP_sim
+multi.df$GNP.minus.GPP <- multi.df$r1_GNP_sim - multi.df$r2_GPP_sim
 
 #color by GNP/GPP-like status; -1=GNP, 1=GPP, 0=neither
-VR.Eye.data$status <- ifelse(VR.Eye.data$GNP_sim >= sim.thresholds[1] & #high GNP sim
-                          VR.Eye.data$GPP_sim < sim.thresholds[2], -1, #low GPP sim
-                          ifelse(VR.Eye.data$GNP_sim < sim.thresholds[1] & #low GNP sim
-                                   VR.Eye.data$GPP_sim >= sim.thresholds[2], 1, 0)) #high GPP sim
-
+multi.df$status <- ifelse(multi.df$r1_GNP_sim >= sim.thresholds[1] & #high GNP sim
+                          multi.df$r2_GPP_sim < sim.thresholds[2], -1, #low GPP sim
+                          ifelse(multi.df$r1_GNP_sim < sim.thresholds[1] & #low GNP sim
+                                 multi.df$r2_GPP_sim >= sim.thresholds[2], 1, 0)) #high GPP sim
+multi.df$Patient_ID <- sapply(multi.df$File_ID, function(x) sample.levels[x])
+multi.df$Patient_ID <- factor(multi.df$Patient_ID, levels=c('LC02AB', 'LC12A', 'RT-07', 'LC10B', 'LC09A',
+                                                            'LC03A', 'W4', 'LC-18', 'LC11A', 'LC08A', 
+                                                            'RT15', 'W15', 'LC-21', 'RT10', 'RT01B', 
+                                                            'LC-27', 'W14', 'W12', 'LC22', 'W5', 
+                                                            'W2', 'LC25', 'LC04B', 'K01', 'RT-14', 
+                                                            'LC26', 'W11', 'LC06B'))
 
 #plot GPP-GNP sim by patient
-patient.axis.plot <- ggplot(VR.Eye.data, aes(x=Patient_ID, y=GNP.minus.GPP, col=as.factor(status))) + 
+patient.axis.plot <- ggplot(multi.df, aes(x=Patient_ID, y=GNP.minus.GPP, col=as.factor(status))) + 
                       geom_quasirandom(bandwidth=1) + ylim(-45, 37) +
                       scale_color_manual(name='Status', 
                                      labels=c('-1'='GNP-like', '0'='Neither GNP- nor GPP-like', '1'='GPP-like'), 
                                      values=c('-1'='darkred', '0'='lightgrey', '1'='darkblue')) +
                       labs(y='GNP similarity - GPP similarity') + theme_bw() + 
                       theme(panel.grid = element_blank(), legend.position = 'none') + coord_flip()
-#print(patient.axis.plot)
+print(patient.axis.plot)
 
 #export
-if (export == TRUE){
-  png(paste0(og.output.path, '/GNP GPP sim axis/GNP GPP axis by patient.png'), height=3000, width=1500, res=200)
-  print(patient.axis.plot)
-  dev.off()
-}
+png(paste0(og.output.path, 'GNP_GPP similarity axis by patient.png'), height=2000, width=1500, res=200)
+print(patient.axis.plot)
+dev.off()
 ```
 
 ```{r export as fcs}
