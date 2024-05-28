@@ -1,0 +1,359 @@
+---
+title: "VR-Eye on the RAPID Dataset"
+author: "Claire Cross, Cass Mayeda"
+date: "2024-05-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# # uncomment lines below to install packages
+# if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+# BiocManager::install("Biobase")
+# BiocManager::install("flowCore")
+# install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+# install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+# install.packages("cowplot", repos = "http://cran.us.r-project.org")
+# install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
+# #install.packages("viridis", repos = "http://cran.us.r-project.org")
+# #install.packages("data.table", repos = "http://cran.us.r-project.org")
+# install.packages("stringr", repos = "http://cran.us.r-project.org")
+# install.packages("FNN", repos = "http://cran.us.r-project.org")
+# #install.packages("matrixStats", repos = "http://cran.us.r-project.org")
+# BiocManager::install("cytoMEM")
+# # install.packages("gplots", repos = "http://cran.us.r-project.org")
+# # install.packages("gbutils", repos = "http://cran.us.r-project.org")
+# install.packages("dbscan", repos = "http://cran.us.r-project.org")
+# install.packages("scales", repos = "http://cran.us.r-project.org")
+```
+
+```{r initialization}
+#load packages into the working library
+suppressPackageStartupMessages({library(Biobase)
+                                library(flowCore)
+                                library(ggplot2)
+                                library(tidyverse)
+                                library(cowplot)
+                                library(RColorBrewer)
+                                library(viridis)
+                                library(stringr)
+                                library(FNN)
+                                library(cytoMEM)
+                                library(ggbeeswarm)
+                                library(scales)})
+source("./R/general_plots.R")
+source("./R/VR-Eye_functions.R")
+source("./R/VR-Eye_plots.R")
+source('./R/tatarize_color_palette.R')
+expr.colors = colorRampPalette(rev(brewer.pal(n = 11, name = "Spectral")))(5)
+
+#specify fcs file location and output path
+file.path <- paste0(getwd(), '/data files/IMC - Tietscher et al/')
+og.output.path <- paste0(getwd(), '/output files/VR-Eye_IMC/')
+
+#locate fcs file
+fcs.files <- dir(path = file.path, pattern = "*.fcs")
+print(fcs.files)
+
+#do you wish to downsample the data?
+sample.files <- FALSE
+sample.num <- 1000 
+```
+
+```{r load data}
+#load cell data
+setwd(file.path)
+data.lists <- lapply(lapply(fcs.files, read.FCS, truncate_max_range = FALSE),exprs)
+combined.patient.data <- as.data.frame(do.call(rbind, data.lists))
+colnames(combined.patient.data)[1:(ncol(combined.patient.data)-2)] <- (read.FCS(fcs.files[[1]])@parameters@data[["desc"]])
+colnames(combined.patient.data)
+```
+
+```{r downsampling}
+if (sample.files == TRUE){ 
+  #set seed for reproducibility
+  set.seed(1)
+  #split into individual files
+  files.to.sample <- split(combined.patient.data, combined.patient.data$`File_ID`) 
+  sampled.data <- list()
+  for (i in 1:length(files.to.sample)){
+    #file has a lot of cells => we must downsample
+    if ((nrow(files.to.sample[[i]])) >= sample.num){ 
+      sampled.data[[i]] <- as.data.frame(files.to.sample[[i]][sample(nrow(files.to.sample[[i]]), sample.num), ])
+    #not enough cells to downsample => just keep all of the cells present
+    }else{sampled.data[[i]] <- files.to.sample[[i]]}
+  }
+  #combine list data into one big data frame
+  combined.sampled.data <- as.data.frame(do.call(rbind, sampled.data))
+}else{combined.sampled.data <- combined.patient.data}
+
+print(paste0(nrow(combined.sampled.data), ' cells will be analyzed'))
+```
+
+```{r select data}
+#select tSNE columns 
+tSNE.indx1 <- 49
+tSNE.indx2 <- 50
+tSNE.data <- combined.sampled.data[, c(tSNE.indx1:tSNE.indx2)]
+colnames(tSNE.data) <- c("tSNE1", "tSNE2")
+
+#clean up column names, mark the ones used to generate the t-SNE-CUDA
+protein.markers <- c(1:38, 41:43)
+tsne.markers <- c(2:20, 22:27, 29, 31:36, 42:43)
+
+#select marker channels
+panel.info <- as.data.frame(matrix(nrow=length(protein.markers), ncol=3))
+colnames(panel.info) <- c('indices', 'full_names', 'trimmed_names')
+panel.info$indices <- protein.markers
+panel.info$full_names <- colnames(combined.sampled.data)[protein.markers]
+panel.info$trimmed_names <- colnames(combined.sampled.data)[protein.markers]
+marker.data <- combined.sampled.data[, panel.info$indices]
+
+#arcsinh transformation
+cofactor <- 1
+marker.data <- asinh(marker.data/cofactor)
+colnames(marker.data) <- panel.info$trimmed_names
+```
+
+```{r t-SNE plots}
+#plot tSNE axes
+tsne.plot <- ggplot(tSNE.data) + geom_point(aes(x=tSNE1, y=tSNE2), color='lightgrey') +
+              labs(x='t-SNE2', y='t-SNE1', title='IMC Breast Cancer', 
+                   caption="Data from Tietscher et al., Nature. 2023") + 
+              coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
+print(tsne.plot)
+
+#plot cell density on t-SNE axes
+tsne.dens.plot <- tsne_density(tSNE.data, orientation=1, capt="Data from Tietscher et al., Nature. 2023", export=TRUE, output_path=og.output.path)
+
+#plot heat on markers
+tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=7, orientation=1, export=TRUE, output_path=og.output.path)
+```
+
+```{r, set VR constants}
+#KNN settings
+kvalue <- 60
+
+#set minimum cluster size
+min.cluster <- 15
+
+#DBSCAN settings
+db.eps <- 2 
+```
+
+```{r KNN MEM}
+#look for existing KNN labels file
+knn.path <- og.output.path
+setwd(knn.path)
+knn.data.file <- dir(pattern='knn labels.RData')
+rds.name <- paste0(knn.path, 'knn labels.RData')
+  
+#load knn.labels if the file exists; otherwise, calculate knn.labels
+if(is.na(knn.data.file[1])){
+  start_time = Sys.time()
+  knn.labels = knn_MEM(tSNE.data, marker.data, kvalue=kvalue)
+  total_time = Sys.time() - start_time
+  print(' KNN MEM completed in ')
+  print(total_time)
+    
+  #save as rds 
+  save(knn.labels, file = paste0(og.output.path, 'knn labels.RData'))
+}else{load(file=rds.name)}
+```
+
+```{r set VR searching info}
+#specify searching labels and goals
+goals <- c('GNP', 'GPP')
+ref.labels <- c('SOX2+7 S100B+4 GFAP+1 p-NFkB+0', #optimized GNP reference label 
+                'EGFR+7 CD49F+2 pp38+2 CD44+1 B3TUB+0') #optimized GPP reference label
+```
+
+```{r, VR-Eye}
+#set multi-round variables
+current_round <- 0 
+multi.labels <- data.frame()
+multi.df <- combined.sampled.data
+
+#search for each ref label supplied
+for (j in 1:length(goals)){
+  #get goal & search label
+  goal <- goals[j]
+  ref.label <- ref.labels[j]
+  print(paste0('searching for ', goal, ': ', ref.label))
+
+  # check that markers in the searching label are being measured in the new dataset
+  common.label <- check_panel(ref.label, panel.info)
+  common.ref.MEM.score <- common.label[[1]]
+  ref.label <- common.label[[2]]
+
+  # create output folder
+  current_round <- current_round + 1
+  run.folder <- paste0(og.output.path, goal, '/')
+  dir.create(run.folder)
+
+  #VR-Eye search and sim plot
+  common.MEM.scores <- knn.labels[, colnames(common.ref.MEM.score)]
+
+  #check if only one marker
+  if (!is.data.frame(common.MEM.scores)) {
+    common.MEM.scores <- as.data.frame(common.MEM.scores)
+    colnames(common.MEM.scores) <- colnames(common.ref.MEM.score)
+  }
+    
+  #calculate similarity
+  print('calculating similarity')
+  sim <- sim_scores(common.MEM.scores, common.ref.MEM.score)
+  my.range <- max(sim)-min(sim)
+  sim.data <- cbind(marker.data, File_ID = i, tSNE.data, sim)
+  sim.plot <- VR_Eye_sim_plot(sim.data, ref.label)
+  #export
+  png(paste0(run.folder, goal, " similarity.png"),
+      height = 1500, width = 1500, res = 200)
+  print(sim.plot)
+  dev.off()
+
+  #save round information to multi.df
+  print('saving data to multi.df')
+  this.round <- c()
+  this.round = cbind(
+    VRPTR_round = current_round,
+    search_label = ref.label,
+    goal = goal,
+    min.clust = min.cluster,
+    kvalue = kvalue
+  )
+  multi.labels <- rbind(multi.labels, this.round)
+  save(multi.labels, file = paste0(og.output.path, "multi-run labels.RData"))
+
+  #save similarity score in multi-round results df
+  multi.df <- cbind(multi.df, sim)
+  colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_", goal, "_sim")
+
+  #update multi.df
+  rds.name <- paste0(og.output.path, 'multi-run VRPTR.RData')
+  save(multi.df, file = rds.name)
+}
+```
+
+```{r similarity binning}
+#set similarity thresholds (optimized to identify GNP and GPP clusters found in RAPID)
+sim.thresholds <- c(83, 82) #GNP = 83, GPP = 82
+
+#bin cells based on similarity score
+for(i in 1:length(goals)){
+  #get search info
+  goal <- goals[i]
+  sim.col <- paste0("r", i, "_", goal, "_sim")
+  run.folder <- paste0(og.output.path, goal, '/')
+  
+  sim.data$sim_bin <- ifelse(multi.df[,sim.col] >= sim.thresholds[i], sim.thresholds[i], 0)
+  bin_plot <- VR_Eye_bin_plot(cbind(sim.data, tSNE.data), ref.label, sim.thresholds[i])
+  print(bin_plot)
+  #export
+  png(paste0(run.folder, goal, " bin_", sim.thresholds[i], ".png"),
+      height = 1500, width = 1500, res = 200)
+  print(bin_plot)
+  dev.off()
+}
+```
+
+```{r plot population abundance per patient}
+#set cell status based on similarity score
+multi.df$GNP_status <- ifelse(multi.df$r1_GNP_sim >= sim.thresholds[1], 1, 0)
+multi.df$GPP_status <- ifelse(multi.df$r2_GPP_sim >= sim.thresholds[2], 1, 0)
+
+#calculate population abundance per patient
+pop.stats <- as.data.frame(matrix(ncol=5, nrow=length(sample.levels)))
+colnames(pop.stats) <- c('Patient_ID', 'GNP_count', 'GPP_count', 'GNP_percentage', 'GPP_percentage')
+for(i in 1:length(sample.levels)){
+  patient.cells <- multi.df[which(multi.df$File_ID == i),]
+  num.cells <- nrow(patient.cells)
+  num.GNP <- nrow(patient.cells[which(patient.cells$GNP_status==1),])
+  num.GPP <- nrow(patient.cells[which(patient.cells$GPP_status==1),])
+  pop.stats[i,] <- c(sample.levels[i], num.GNP, num.GPP, 
+                     round(num.GNP/num.cells*100, 2), 
+                     round(num.GPP/num.cells*100, 2))
+}
+
+#reformat data
+to.plot <- pivot_longer(pop.stats, cols=c(4,5), names_to='Population', values_to='Percentage')
+to.plot$Percentage <- as.numeric(to.plot$Percentage)
+to.plot$Patient_ID <- factor(to.plot$Patient_ID, levels=c('LC06B', 'W11', 'LC26', 'RT-14', 'K01', 
+                                                          'LC04B', 'LC25', 'W2', 'W5', 'LC22', 
+                                                          'W12', 'W14', 'LC-27', 'RT01B', 'RT10', 
+                                                          'LC-21', 'W15', 'RT15', 'LC08A', 'LC11A', 
+                                                          'LC-18', 'W4', 'LC03A', 'LC09A', 'LC10B', 
+                                                          'RT-07', 'LC12A', 'LC02AB'))
+#plot
+abundance.plot <- ggplot(to.plot, aes(x=Patient_ID, y=Percentage, fill=Population)) + 
+                  geom_bar(stat='identity', position=position_dodge()) + theme_bw() +
+                  scale_fill_manual(values=c('GNP_percentage'='darkred', 'GPP_percentage'='darkblue'), 
+                                    labels=c('GNP_percentage'='GNP-like', 'GPP_percentage'='GPP-like')) + 
+                  labs(title='VR-identified Abundance of GNP-like and GPP-like Cells in the RAPID Dataset', 
+                       caption='Data from Leelatian and Sinnaeve et al., eLife, 2020', 
+                       y='Abundance (%)') + 
+                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
+                        panel.grid = element_blank()) 
+print(abundance.plot)
+
+#export
+png(paste0(og.output.path, 'GNP-like and GPP-like cell abundance_VR-Eye.png'), height=1000, width=1500, res=200)
+print(abundance.plot)
+dev.off()
+write.csv(pop.stats, file=paste0(og.output.path, 'GNP-like and GPP-like cell abundance_VR-Eye.csv'))
+```
+
+```{r plot similarity axis per patient}
+#subtract GNP similarity from GPP similarity
+multi.df$GNP.minus.GPP <- multi.df$r1_GNP_sim - multi.df$r2_GPP_sim
+
+#color by GNP/GPP-like status; -1=GNP, 1=GPP, 0=neither
+multi.df$status <- ifelse(multi.df$r1_GNP_sim >= sim.thresholds[1] & #high GNP sim
+                          multi.df$r2_GPP_sim < sim.thresholds[2], -1, #low GPP sim
+                          ifelse(multi.df$r1_GNP_sim < sim.thresholds[1] & #low GNP sim
+                                 multi.df$r2_GPP_sim >= sim.thresholds[2], 1, 0)) #high GPP sim
+multi.df$Patient_ID <- sapply(multi.df$File_ID, function(x) sample.levels[x])
+multi.df$Patient_ID <- factor(multi.df$Patient_ID, levels=c('LC02AB', 'LC12A', 'RT-07', 'LC10B', 'LC09A',
+                                                            'LC03A', 'W4', 'LC-18', 'LC11A', 'LC08A', 
+                                                            'RT15', 'W15', 'LC-21', 'RT10', 'RT01B', 
+                                                            'LC-27', 'W14', 'W12', 'LC22', 'W5', 
+                                                            'W2', 'LC25', 'LC04B', 'K01', 'RT-14', 
+                                                            'LC26', 'W11', 'LC06B'))
+
+#plot GPP-GNP sim by patient
+patient.axis.plot <- ggplot(multi.df, aes(x=Patient_ID, y=GNP.minus.GPP, col=as.factor(status))) + 
+                      geom_quasirandom(bandwidth=1) + ylim(-45, 37) +
+                      scale_color_manual(name='Status', 
+                                     labels=c('-1'='GNP-like', '0'='Neither GNP- nor GPP-like', '1'='GPP-like'), 
+                                     values=c('-1'='darkred', '0'='lightgrey', '1'='darkblue')) +
+                      labs(y='GNP similarity - GPP similarity') + theme_bw() + 
+                      theme(panel.grid = element_blank(), legend.position = 'none') + coord_flip()
+print(patient.axis.plot)
+
+#export
+png(paste0(og.output.path, 'GNP_GPP similarity axis by patient.png'), height=2000, width=1500, res=200)
+print(patient.axis.plot)
+dev.off()
+```
+
+```{r export as fcs}
+#split data by patient
+separate.fcs.files <- split(multi.df, multi.df$File_ID)
+for (i in 1:length(separate.fcs.files)){
+  #format data
+  reduce.data <- separate.fcs.files[[i]]
+  mat.input <- as.matrix(reduce.data)
+  #set metadata
+  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(multi.df))
+  metadata$range <- apply(apply(mat.input, 2, range), 2, diff)
+  metadata$minRange <- apply(mat.input, 2, min)
+  metadata$maxRange <- apply(mat.input, 2, max)
+  input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
+  #write file
+  sample.name <- sample.levels[reduce.data[1, 'File_ID']] 
+  new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR-Eye.fcs")
+  write.FCS(input.flowframe, filename=new.filename)
+  print(paste0("FCS file ", i, ': ', sample.name, " done"))
+}
+```
