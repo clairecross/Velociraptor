@@ -164,9 +164,9 @@ if(is.na(knn.data.file[1])){
 
 ```{r set VR searching info}
 #specify searching labels and goals
-goals <- c('GNP', 'GPP')
-ref.labels <- c('SOX2+7 S100B+4 GFAP+1 p-NFkB+0', #optimized GNP reference label 
-                'EGFR+7 CD49F+2 pp38+2 CD44+1 B3TUB+0') #optimized GPP reference label
+goals <- c('', '')
+ref.labels <- c('', #optimized GNP reference label 
+                '') #optimized GPP reference label
 ```
 
 ```{r, VR-Eye}
