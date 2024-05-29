@@ -124,11 +124,11 @@ tsne.plot <- ggplot(tSNE.data) + geom_point(aes(x=tSNE1, y=tSNE2), color='lightg
               coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
 print(tsne.plot)
 
-#plot cell density on t-SNE axes
-tsne.dens.plot <- tsne_density(tSNE.data, orientation=1, capt="Data from Tietscher et al., Nature. 2023", export=TRUE, output_path=og.output.path)
-
-#plot heat on markers
-tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=7, orientation=1, export=TRUE, output_path=og.output.path)
+# #plot cell density on t-SNE axes
+# tsne.dens.plot <- tsne_density(tSNE.data, orientation=1, capt="Data from Tietscher et al., Nature. 2023", export=TRUE, output_path=og.output.path)
+# 
+# #plot heat on markers
+# tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=7, orientation=1, export=TRUE, output_path=og.output.path)
 ```
 
 ```{r, set VR constants}
@@ -164,9 +164,21 @@ if(is.na(knn.data.file[1])){
 
 ```{r set VR searching info}
 #specify searching labels and goals
-goals <- c('', '')
-ref.labels <- c('', #optimized GNP reference label 
-                '') #optimized GPP reference label
+goals <- c('B cell', 'plasma cell', 'NK', 'T cell', 'CD4 T cell', 'CD8 T cell', 'Treg', 'aDC', 'pDC', 'Myeloid', 'Neutrophil', 'Tumor', 'Fibroblast', 'Endothelial')
+ref.labels <- c('HLA-DR+7 CD20+6 CD45RA+6 CD45RO+6 MMP9+3 E-Cadherin+2 CD4+2 CD27+1 CD68+1 CD3+1 CD11c+1 PD1+1 Tim-3+1 CD274+1 FOXP3+1 CD8a+1 CD140b+1 CD40+1 CD31_vWF+1 CD15+1 SMA+0 panCK+0 CD38+0 CD303+0 LAG-3+0 CD7+0 LAMP3+0 TCF7+0 ICOS+0 GITR+0 CD21+0', 
+                'HLA-DR+4 MMP9+3 CD45RO+3 CD31_vWF+3 E-Cadherin+2 CD38+2 CD68+2 CD45RA+2 Tim-3+2 CD140b+2 CD4+2 SMA+1 CD27+1 CD303+1 CD7+1 CD3+1 CD11c+1 PD1+1 CD274+1 TCF7+1 GITR+1 CD40+1 CD15+1 panCK+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 ICOS+0 CD8a+0 CD21+0',
+                'CD45RO+4 HLA-DR+3 CD7+2 MMP9+2 CD140b+2 CD4+2 SMA+1 E-Cadherin+1 CD68+1 CD45RA+1 CD3+1 CD11c+1 Tim-3+1 GITR+1 CD31_vWF+1 CD15+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 CD40+0 CD21+0',
+                'CD45RO+7 HLA-DR+6 CD4+6 CD3+5 CD7+3 MMP9+3 CD8a+3 CD68+2 CD11c+2 Tim-3+2 CD140b+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD38+1 CD27+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 FOXP3+1 ICOS+1 GITR+1 CD40+1 CD15+1 panCK+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD21+0', 
+                'CD45RO+7 HLA-DR+6 CD4+6 CD3+5 CD7+3 MMP9+3 CD140b+3 CD68+2 CD11c+2 Tim-3+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD27+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 FOXP3+1 ICOS+1 CD8a+1 GITR+1 CD40+1 CD15+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD21+0', 
+                'CD8a+7 HLA-DR+6 CD45RO+6 CD3+5 CD4+4 CD7+3 MMP9+3 CD68+2 CD11c+2 Tim-3+2 CD140b+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD38+1 CD27+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 ICOS+1 GITR+1 CD40+1 CD15+1 panCK+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 CD21+0', 
+                'HLA-DR+7 CD45RO+7 CD4+6 CD3+5 CD7+4 FOXP3+4 CD68+3 Tim-3+3 MMP9+3 CD140b+3 CD27+2 CD11c+2 ICOS+2 GITR+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD38+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 CD40+1 CD15+1 panCK+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD8a+0 CD21+0', 
+                'HLA-DR+9 CD45RO+4 CD4+4 CD68+3 Tim-3+3 MMP9+3 E-Cadherin+2 CD11c+2 CD140b+2 CD31_vWF+2 SMA+1 CD27+1 CD7+1 CD45RA+1 CD3+1 LAMP3+1 PD1+1 CD274+1 CD40+1 CD15+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD21+0', 
+                'HLA-DR+6 CD45RO+4 CD4+4 CD68+3 MMP9+3 CD303+2 CD45RA+2 Tim-3+2 CD140b+2 CD31_vWF+2 E-Cadherin+1 CD27+1 CD7+1 CD3+1 CD11c+1 PD1+1 CD274+1 CD15+1 SMA+0 panCK+0 CD38+0 LAG-3+0 CD20+0 LAMP3+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0', 
+                'HLA-DR+8 CD68+6 CD45RO+4 CD4+4 CD11c+3 Tim-3+3 MMP9+3 CD140b+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD7+1 CD45RA+1 CD3+1 PD1+1 CD274+1 CD40+1 CD15+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD21+0', 
+                'CD15+10 MMP9+4 CD45RO+4 HLA-DR+3 E-Cadherin+2 CD4+2 SMA+1 CD68+1 CD45RA+1 CD11c+1 Tim-3+1 CD274+1 CD140b+1 CD31_vWF+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 CD3+0 LAMP3+0 PD1+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0', 
+                'panCK+5 E-Cadherin+4 MMP9+3 CD45RO+3 CD140b+2 CD4+2 HLA-DR+1 CD68+1 CD7+1 CD45RA+1 CD3+1 CD11c+1 PD1+1 Tim-3+1 CD274+1 TCF7+1 FOXP3+1 ICOS+1 GITR+1 CD31_vWF+1 CD15+1 SMA+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD8a+0 CD40+0 CD21+0', 
+                'SMA+3 CD45RO+3 CD140b+3 HLA-DR+2 MMP9+2 CD4+2 E-Cadherin+1 CD68+1 CD45RA+1 CD3+1 CD11c+1 Tim-3+1 CD31_vWF+1 CD15+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 LAMP3+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0', 
+                'CD31_vWF+7 CD45RO+4 CD140b+4 SMA+3 HLA-DR+3 MMP9+3 Tim-3+2 CD4+2 E-Cadherin+1 CD27+1 CD68+1 CD7+1 CD45RA+1 CD3+1 CD11c+1 PD1+1 CD274+1 FOXP3+1 GITR+1 CD40+1 CD15+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 TCF7+0 ICOS+0 CD8a+0 CD21+0') 
 ```
 
 ```{r, VR-Eye}
@@ -176,10 +188,10 @@ multi.labels <- data.frame()
 multi.df <- combined.sampled.data
 
 #search for each ref label supplied
-for (j in 1:length(goals)){
+for (i in 1:length(goals)){
   #get goal & search label
-  goal <- goals[j]
-  ref.label <- ref.labels[j]
+  goal <- goals[i]
+  ref.label <- ref.labels[i]
   print(paste0('searching for ', goal, ': ', ref.label))
 
   # check that markers in the searching label are being measured in the new dataset
@@ -205,7 +217,7 @@ for (j in 1:length(goals)){
   print('calculating similarity')
   sim <- sim_scores(common.MEM.scores, common.ref.MEM.score)
   my.range <- max(sim)-min(sim)
-  sim.data <- cbind(marker.data, File_ID = i, tSNE.data, sim)
+  sim.data <- cbind(marker.data, File_ID=multi.df$sample.num, tSNE.data, sim)
   sim.plot <- VR_Eye_sim_plot(sim.data, ref.label)
   #export
   png(paste0(run.folder, goal, " similarity.png"),
@@ -231,115 +243,22 @@ for (j in 1:length(goals)){
   colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_", goal, "_sim")
 
   #update multi.df
-  rds.name <- paste0(og.output.path, 'multi-run VRPTR.RData')
+  rds.name <- paste0(og.output.path, 'multi-run VR-Eye.RData')
   save(multi.df, file = rds.name)
 }
 ```
 
-```{r similarity binning}
-#set similarity thresholds (optimized to identify GNP and GPP clusters found in RAPID)
-sim.thresholds <- c(83, 82) #GNP = 83, GPP = 82
+```{r plot protein expression on slide}
 
-#bin cells based on similarity score
-for(i in 1:length(goals)){
-  #get search info
-  goal <- goals[i]
-  sim.col <- paste0("r", i, "_", goal, "_sim")
-  run.folder <- paste0(og.output.path, goal, '/')
-  
-  sim.data$sim_bin <- ifelse(multi.df[,sim.col] >= sim.thresholds[i], sim.thresholds[i], 0)
-  bin_plot <- VR_Eye_bin_plot(cbind(sim.data, tSNE.data), ref.label, sim.thresholds[i])
-  print(bin_plot)
-  #export
-  png(paste0(run.folder, goal, " bin_", sim.thresholds[i], ".png"),
-      height = 1500, width = 1500, res = 200)
-  print(bin_plot)
-  dev.off()
-}
 ```
 
-```{r plot population abundance per patient}
-#set cell status based on similarity score
-multi.df$GNP_status <- ifelse(multi.df$r1_GNP_sim >= sim.thresholds[1], 1, 0)
-multi.df$GPP_status <- ifelse(multi.df$r2_GPP_sim >= sim.thresholds[2], 1, 0)
+```{r plot similarity overlay on slide}
 
-#calculate population abundance per patient
-pop.stats <- as.data.frame(matrix(ncol=5, nrow=length(sample.levels)))
-colnames(pop.stats) <- c('Patient_ID', 'GNP_count', 'GPP_count', 'GNP_percentage', 'GPP_percentage')
-for(i in 1:length(sample.levels)){
-  patient.cells <- multi.df[which(multi.df$File_ID == i),]
-  num.cells <- nrow(patient.cells)
-  num.GNP <- nrow(patient.cells[which(patient.cells$GNP_status==1),])
-  num.GPP <- nrow(patient.cells[which(patient.cells$GPP_status==1),])
-  pop.stats[i,] <- c(sample.levels[i], num.GNP, num.GPP, 
-                     round(num.GNP/num.cells*100, 2), 
-                     round(num.GPP/num.cells*100, 2))
-}
-
-#reformat data
-to.plot <- pivot_longer(pop.stats, cols=c(4,5), names_to='Population', values_to='Percentage')
-to.plot$Percentage <- as.numeric(to.plot$Percentage)
-to.plot$Patient_ID <- factor(to.plot$Patient_ID, levels=c('LC06B', 'W11', 'LC26', 'RT-14', 'K01', 
-                                                          'LC04B', 'LC25', 'W2', 'W5', 'LC22', 
-                                                          'W12', 'W14', 'LC-27', 'RT01B', 'RT10', 
-                                                          'LC-21', 'W15', 'RT15', 'LC08A', 'LC11A', 
-                                                          'LC-18', 'W4', 'LC03A', 'LC09A', 'LC10B', 
-                                                          'RT-07', 'LC12A', 'LC02AB'))
-#plot
-abundance.plot <- ggplot(to.plot, aes(x=Patient_ID, y=Percentage, fill=Population)) + 
-                  geom_bar(stat='identity', position=position_dodge()) + theme_bw() +
-                  scale_fill_manual(values=c('GNP_percentage'='darkred', 'GPP_percentage'='darkblue'), 
-                                    labels=c('GNP_percentage'='GNP-like', 'GPP_percentage'='GPP-like')) + 
-                  labs(title='VR-identified Abundance of GNP-like and GPP-like Cells in the RAPID Dataset', 
-                       caption='Data from Leelatian and Sinnaeve et al., eLife, 2020', 
-                       y='Abundance (%)') + 
-                  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
-                        panel.grid = element_blank()) 
-print(abundance.plot)
-
-#export
-png(paste0(og.output.path, 'GNP-like and GPP-like cell abundance_VR-Eye.png'), height=1000, width=1500, res=200)
-print(abundance.plot)
-dev.off()
-write.csv(pop.stats, file=paste0(og.output.path, 'GNP-like and GPP-like cell abundance_VR-Eye.csv'))
-```
-
-```{r plot similarity axis per patient}
-#subtract GNP similarity from GPP similarity
-multi.df$GNP.minus.GPP <- multi.df$r1_GNP_sim - multi.df$r2_GPP_sim
-
-#color by GNP/GPP-like status; -1=GNP, 1=GPP, 0=neither
-multi.df$status <- ifelse(multi.df$r1_GNP_sim >= sim.thresholds[1] & #high GNP sim
-                          multi.df$r2_GPP_sim < sim.thresholds[2], -1, #low GPP sim
-                          ifelse(multi.df$r1_GNP_sim < sim.thresholds[1] & #low GNP sim
-                                 multi.df$r2_GPP_sim >= sim.thresholds[2], 1, 0)) #high GPP sim
-multi.df$Patient_ID <- sapply(multi.df$File_ID, function(x) sample.levels[x])
-multi.df$Patient_ID <- factor(multi.df$Patient_ID, levels=c('LC02AB', 'LC12A', 'RT-07', 'LC10B', 'LC09A',
-                                                            'LC03A', 'W4', 'LC-18', 'LC11A', 'LC08A', 
-                                                            'RT15', 'W15', 'LC-21', 'RT10', 'RT01B', 
-                                                            'LC-27', 'W14', 'W12', 'LC22', 'W5', 
-                                                            'W2', 'LC25', 'LC04B', 'K01', 'RT-14', 
-                                                            'LC26', 'W11', 'LC06B'))
-
-#plot GPP-GNP sim by patient
-patient.axis.plot <- ggplot(multi.df, aes(x=Patient_ID, y=GNP.minus.GPP, col=as.factor(status))) + 
-                      geom_quasirandom(bandwidth=1) + ylim(-45, 37) +
-                      scale_color_manual(name='Status', 
-                                     labels=c('-1'='GNP-like', '0'='Neither GNP- nor GPP-like', '1'='GPP-like'), 
-                                     values=c('-1'='darkred', '0'='lightgrey', '1'='darkblue')) +
-                      labs(y='GNP similarity - GPP similarity') + theme_bw() + 
-                      theme(panel.grid = element_blank(), legend.position = 'none') + coord_flip()
-print(patient.axis.plot)
-
-#export
-png(paste0(og.output.path, 'GNP_GPP similarity axis by patient.png'), height=2000, width=1500, res=200)
-print(patient.axis.plot)
-dev.off()
 ```
 
 ```{r export as fcs}
 #split data by patient
-separate.fcs.files <- split(multi.df, multi.df$File_ID)
+separate.fcs.files <- split(multi.df, multi.df$sample.num)
 for (i in 1:length(separate.fcs.files)){
   #format data
   reduce.data <- separate.fcs.files[[i]]
