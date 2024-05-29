@@ -240,7 +240,7 @@ for (j in 1:length(goals)){
   colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_", goal, "_sim")
 
   #update multi.df
-  rds.name <- paste0(og.output.path, 'multi-run VRPTR.RData')
+  rds.name <- paste0(og.output.path, 'multi-run VR-Eye.RData')
   save(multi.df, file = rds.name)
 }
 ```
