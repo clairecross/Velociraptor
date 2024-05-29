@@ -7,7 +7,7 @@ theme_VRPTR <- function() {
     )
 }
 
-VR_Eye_sim_plot <- function(all.data, ref.label, min.sim=-1) {
+VR_Eye_sim_plot <- function(all.data, ref.label, min.sim=-1, orientation=1) {
   plot.data <- all.data[, c("tSNE1","tSNE2","similarity_score")]
   plot.data <- plot.data[order(plot.data$similarity_score), ]
   
@@ -19,23 +19,40 @@ VR_Eye_sim_plot <- function(all.data, ref.label, min.sim=-1) {
   range <- apply(apply(plot.data[, 1:2], 2, range), 2, diff)
   graphical.ratio <- (range[1] / range[2])
   
-  sim.plot <- ggplot(plot.data) +
-    geom_point(aes(x = tSNE2, y = tSNE1, col = similarity_score)) +
-    coord_fixed(ratio = graphical.ratio) + 
-    scale_color_gradientn(colors = c("lightgrey", "lightgrey", "#5E4FA2", "#88CFA4", "#FFFFBF", "#F88D52", "#9E0142"), 
-                          values = rescale(c(0, min.sim-0.00001, min.sim, min.sim+sim.step, min.sim+2*sim.step, min.sim+3*sim.step, 100)), 
-                          name = "Similarity", limits=c(0,100)) +
-    labs(
-      title = paste0("Similarity: ", ref.label), 
-      x = "t-SNE2", y = "t-SNE1", 
-      caption="Data from Leelatian & Sinnaeve et al., eLife. 2020"
-    ) +
-    theme_VRPTR()
+  if(orientation==1){ #x=tSNE1, y=tSNE2
+    #plot
+    sim.plot <- ggplot(plot.data) +
+      geom_point(aes(x = tSNE1, y = tSNE2, col = similarity_score)) +
+      coord_fixed(ratio = graphical.ratio) + 
+      scale_color_gradientn(colors = c("lightgrey", "lightgrey", "#5E4FA2", "#88CFA4", "#FFFFBF", "#F88D52", "#9E0142"), 
+                            values = rescale(c(0, min.sim-0.00001, min.sim, min.sim+sim.step, min.sim+2*sim.step, min.sim+3*sim.step, 100)), 
+                            name = "Similarity", limits=c(0,100)) +
+      labs(
+        title = paste0("Similarity: ", ref.label), 
+        x = "t-SNE1", y = "t-SNE2"
+      ) +
+      theme_VRPTR()
+    
+  }else if(orientation==2){ #x=tSNE2, y=tSNE1
+    #plot
+    sim.plot <- ggplot(plot.data) +
+      geom_point(aes(x = tSNE2, y = tSNE1, col = similarity_score)) +
+      coord_fixed(ratio = graphical.ratio) + 
+      scale_color_gradientn(colors = c("lightgrey", "lightgrey", "#5E4FA2", "#88CFA4", "#FFFFBF", "#F88D52", "#9E0142"), 
+                            values = rescale(c(0, min.sim-0.00001, min.sim, min.sim+sim.step, min.sim+2*sim.step, min.sim+3*sim.step, 100)), 
+                            name = "Similarity", limits=c(0,100)) +
+      labs(
+        title = paste0("Similarity: ", ref.label), 
+        x = "t-SNE2", y = "t-SNE1"
+      ) +
+      theme_VRPTR()
+  }
+  
   
   return(sim.plot)
 }
 
-VR_Eye_bin_plot <- function(all.data, ref.label, bins) {
+VR_Eye_bin_plot <- function(all.data, ref.label, bins, orientation=1) {
   plot.data <- all.data[order(all.data$sim_bin), c("tSNE1","tSNE2","sim_bin")]
   plot.data$sim_bin <- as.factor(plot.data$sim_bin)
   bin.colors <- colorRampPalette(c('lightgray','lightgreen','darkgreen'))(length(bins) + 1)
@@ -45,16 +62,33 @@ VR_Eye_bin_plot <- function(all.data, ref.label, bins) {
   range <- apply(apply(plot.data[, 1:2], 2, range), 2, diff)
   graphical.ratio <- (range[1] / range[2])
   
-  bin.plot <- ggplot(plot.data) +
-    geom_point(aes(x = tSNE2, y = tSNE1, col = sim_bin)) +
-    coord_fixed(ratio = graphical.ratio) + 
-    scale_color_manual(values = bin.colors, name = ("Similarity bin")) +
-    labs(
-      title = paste0("Similarity binned: ", ref.label), 
-      x = "t-SNE 2", y = "t-SNE 1"
-    ) +
-    theme_bw() +
-    theme_VRPTR()
+  if(orientation==1){ #x=tSNE1, y=tSNE2
+    #plot
+    bin.plot <- ggplot(plot.data) +
+      geom_point(aes(x = tSNE1, y = tSNE2, col = sim_bin)) +
+      coord_fixed(ratio = graphical.ratio) + 
+      scale_color_manual(values = bin.colors, name = ("Similarity bin")) +
+      labs(
+        title = paste0("Similarity binned: ", ref.label), 
+        x = "t-SNE 1", y = "t-SNE 2"
+      ) +
+      theme_bw() +
+      theme_VRPTR()
+    
+  }else if(orientation==2){ #x=tSNE2, y=tSNE1
+    #plot
+    bin.plot <- ggplot(plot.data) +
+      geom_point(aes(x = tSNE2, y = tSNE1, col = sim_bin)) +
+      coord_fixed(ratio = graphical.ratio) + 
+      scale_color_manual(values = bin.colors, name = ("Similarity bin")) +
+      labs(
+        title = paste0("Similarity binned: ", ref.label), 
+        x = "t-SNE 2", y = "t-SNE 1"
+      ) +
+      theme_bw() +
+      theme_VRPTR()
+  }
+  
   
   return(bin.plot)
 }
@@ -63,7 +97,8 @@ VR_Eye_cluster_plot <- function(all.data,
                            cluster.data, 
                            sim.plot = NULL,
                            color.scheme = "tatarize", 
-                           ref.label = "") {
+                           ref.label = "", 
+                           orientation=1) {
   
   plot.data <- all.data[, c("tSNE1","tSNE2")]
   
@@ -84,17 +119,35 @@ VR_Eye_cluster_plot <- function(all.data,
   range <- apply(apply(plot.data[, 1:2], 2, range), 2, diff)
   graphical.ratio <- (range[1] / range[2])
   
-  cluster.plot <- ggplot(plot.data) +
-    geom_point(aes(x = tSNE2, y = tSNE1), col = "lightgray") +
-    geom_point(data = cluster.data, aes(x = tSNE2, y = tSNE1, col = as.factor(cluster))) +
-    coord_fixed(ratio = graphical.ratio) + 
-    scale_color_manual(values = cluster.colors, name = "Cluster", labels = cluster.avg$label) +
-    labs(
-      title = paste0("Ordered clusters: ", ref.label), 
-      x = "t-SNE 2", y = "t-SNE 1"
-    ) +
-    guides(color = guide_legend(override.aes = list(size = 5))) + 
-    theme_VRPTR()
+  if(orientation==1){ #x=tSNE1, y=tSNE2
+    #plot
+    cluster.plot <- ggplot(plot.data) +
+      geom_point(aes(x = tSNE1, y = tSNE2), col = "lightgray") +
+      geom_point(data = cluster.data, aes(x = tSNE1, y = tSNE2, col = as.factor(cluster))) +
+      coord_fixed(ratio = graphical.ratio) + 
+      scale_color_manual(values = cluster.colors, name = "Cluster", labels = cluster.avg$label) +
+      labs(
+        title = paste0("Ordered clusters: ", ref.label), 
+        x = "t-SNE 1", y = "t-SNE 2"
+      ) +
+      guides(color = guide_legend(override.aes = list(size = 5))) + 
+      theme_VRPTR()
+    
+  }else if(orientation==2){ #x=tSNE2, y=tSNE1
+    #plot
+    cluster.plot <- ggplot(plot.data) +
+      geom_point(aes(x = tSNE2, y = tSNE1), col = "lightgray") +
+      geom_point(data = cluster.data, aes(x = tSNE2, y = tSNE1, col = as.factor(cluster))) +
+      coord_fixed(ratio = graphical.ratio) + 
+      scale_color_manual(values = cluster.colors, name = "Cluster", labels = cluster.avg$label) +
+      labs(
+        title = paste0("Ordered clusters: ", ref.label), 
+        x = "t-SNE 2", y = "t-SNE 1"
+      ) +
+      guides(color = guide_legend(override.aes = list(size = 5))) + 
+      theme_VRPTR()
+  }
+  
   
   return(cluster.plot)
 }
