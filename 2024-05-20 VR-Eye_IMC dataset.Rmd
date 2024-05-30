@@ -248,11 +248,118 @@ for (i in 1:length(goals)){
 }
 ```
 
-```{r plot protein expression on slide}
+```{r select slide to plot}
+#select data
+sample.number <- 9
+ROI.number <- 2
+patient.data <- all.data[which(all.data$sample.num==sample.number),]
+slide.data <- patient.data[which(patient.data$ROI.num==ROI.number), ]
 
+#set color palettes
+cell.type.labels.all <- c('-1'='Unclassified', '1'='aDC', '2'='B cell', 
+                          '3'='CD4 T cell', '4'='CD4 T cell', '5'='CD8 T cell', 
+                          '6'='CD8 T cell', '7'='Endothelial', '8'='Fibroblast', 
+                          '9'='Myeloid', '10'='Neutrophil', '11'='NK', 
+                          '12'='pDC', '13'='Plasma cell', 
+                          '14'='Stromal', '15'='T Cell', '16'='Treg', 
+                          '17'='Tumor', '18'='Tumor', '19'='Tumor', '20'='Tumor')
+cell.type.palette.all <- c('-1'='lightgrey', '1'='plum2', '11'='black',
+                           '12'='lightpink', '13'='plum4', '16'='darkorange3', 
+                           '2'='#474278', #B
+                           '15'='chocolate1', '3'='#FBB700', '4'='#FBB700', '5'='#BF7C00', '6'='#BF7C00', #T
+                           '9'='#DB6E6C', '10'='#790807', #myeloid and neutrophil
+                           '7'='#62B1BB', '8'='#093F67', '14'='#9BB6AB', #endo, stromal, fibro
+                           '17'='#235C3A', '18'='#235C3A', '19'='#235C3A', '20'='#235C3A') #tumor
+```
+
+```{r plot protein expression on slide}
+#select slide
+sample.number <- 9
+ROI.number <- 2
+
+#plot markers
+marker.names <- c('HLA-DR', 'CD68', 'CD15', 'CD20', 'CD3', 
+                  'CD4', 'CD8a', 'CD31_vWF', 'panCK')
+for (i in marker.names){
+  to.plot <- transformed.data[which(transformed.data$sample.num==sample.number & transformed.data$ROI.num==ROI.number), ]
+  expression.plot <- ggplot(to.plot, aes(x=Center_X, y=Center_Y, col=to.plot[,as.character(i)])) + 
+                        scale_color_gradient(name='arcsinh expression', low='lightgrey', high='darkblue') +
+                        geom_point(size=1.5) + theme_bw() + theme(panel.grid=element_blank()) + 
+                        coord_fixed() + labs(title=i, x='x', y='y') + ylim(1000,0) 
+  # print(expression.plot)
+    
+  #export
+  png(paste0(og.output.path, '/VR plots/protein expression on slide/sample ', sample.number, ' ROI ', 
+             ROI.number, '_', i, ' expression.png'), 
+      width=1200, height=1000, res=200)
+  print(expression.plot)
+  dev.off()
+}
+```
+
+```{r}
+
+
+
+#plot VR pop similarity on slide
+percentile <- 0.02
+pop.names <- c('aDC', 'B cell', 'CD4 T cell', 'CD8 T cell', 'Endothelial', 
+               'Fibroblast', 'Myeloid', 'Neutrophil', 'NK', 'pDC', 
+               'Plasma Cell', 'Treg', 'Tumor')
+counter <- 1
+for (i in c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 27, 29)){
+  sim.col <- paste0('r', i, '_sim')
+  
+  #get data
+  to.plot <- slide.data[,c('Center_X', 'Center_Y', sim.col)]
+  min.sim <- min(all.data[,sim.col])
+  max.sim <- 100
+  bp <- quantile(to.plot[,3], percentile) #bottom percentile to account for outliers
+  sim.step <- (max.sim-bp)/4
+  
+  #plot 
+  slide.VR.plot <- ggplot(to.plot, aes(x=to.plot[,1], y=to.plot[,2], col=to.plot[,3])) +
+                    geom_point() + ylim(1000, 0) + coord_fixed() +
+                    scale_color_gradientn(colors = c("lightgrey", "lightgrey", "#5E4FA2", "#5E4FA2",
+                                                     "#88CFA4", "#FFFFBF", "#F88D52", "#9E0142"), 
+                                          values = rescale(c(0, min.sim, min.sim, bp, bp+sim.step, 
+                                                             bp+2*sim.step, bp+3*sim.step, max.sim)), 
+                                          name = "Similarity", limits=c(0, max.sim)) +
+                    labs(title = paste0("Similarity: ", pop.names[counter]), x='x', y='y') +
+                    theme_bw() + theme(panel.grid = element_blank())
+  print(slide.VR.plot)
+      
+  #export
+  png(paste0('C:/Users/clacr/Box/Irish_Lab/Projects/Tietscher et al IMC breast cancer/output files/02-21 VR cell similarity on slide 9-2/slide ', sample.number, '-', ROI.number, '_', pop.names[counter], '_VR similarity_bottom percentile = ', percentile, '.png'), 
+      width=1200, height=1000, res=200)
+  print(slide.VR.plot)
+  dev.off()
+  
+  #increase counter
+  counter <- counter + 1
+}
 ```
 
 ```{r plot similarity overlay on slide}
+#select data
+sample.number <- 9
+ROI.number <- 2
+patient.data <- all.data[which(all.data$sample.num==sample.number),]
+to.plot <- patient.data[which(patient.data$ROI.num==ROI.number), ]
+
+#plot Tietscher cell types on selected slide
+slide.T.plot <- ggplot(to.plot, aes(x=Center_X, y=Center_Y, col=as.factor(cell.subtype.num))) + 
+                    geom_point(size=1.5) + theme_bw() + theme(panel.grid=element_blank()) + 
+                    scale_color_manual(name='Cell Type', labels=cell.subtype.levels, 
+                                       values=cell.type.palette.all) + coord_fixed() +
+                    ylim(1000,0) +labs(title='Tietscher Pop', x='x', y='y')
+print(slide.T.plot)
+#export
+png(paste0(og.output.path, 'slide ', sample.number, '-', ROI.number, ' Tietscher cell types_with legend.png'), height=1000, width=1400, res=200)
+print(slide.T.plot)
+dev.off()
+
+
 
 ```
 
