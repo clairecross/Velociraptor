@@ -282,12 +282,6 @@ cell.type.palette.all <- c('-1'='lightgrey', #unclassified
                            '16'='#790807', #Treg
                            '17'='#235C3A', '18'='#235C3A', '19'='#235C3A', '20'='#235C3A') #tumor
 
-#create output folders
-slide.exp.path <- paste0(og.output.path, '/protein expression on slide/')
-if (!dir.exists(slide.exp.path)) {dir.create(slide.exp.path)}
-slide.sim.path <- paste0(og.output.path, '/similarity on slide/')
-if (!dir.exists(slide.sim.path)) {dir.create(slide.sim.path)}
-
 #plot Tietscher cell types on selected slide
 slide.plot <- ggplot(slide.data, aes(x=Center_X, y=Center_Y, col=as.factor(cell.subtype.num))) + 
                     geom_point(size=1.5) + theme_bw() + theme(panel.grid=element_blank()) + 
@@ -300,6 +294,12 @@ png(paste0(og.output.path, 'slide ', sample.number, '-', ROI.number, ' Tietscher
     height=1000, width=1400, res=200)
 print(slide.plot)
 dev.off()
+
+#create output folders
+slide.exp.path <- paste0(og.output.path, '/protein expression on slide/')
+if (!dir.exists(slide.exp.path)) {dir.create(slide.exp.path)}
+slide.sim.path <- paste0(og.output.path, '/similarity on slide/')
+if (!dir.exists(slide.sim.path)) {dir.create(slide.sim.path)}
 ```
 
 ```{r plot protein expression on slide}
@@ -356,61 +356,36 @@ for (i in 1:length(goals)){
 ```
 
 ```{r plot similarity overlay on slide}
-#get similarity column names
-round.list <- sapply(multi.labels$VRPTR_round, function(x) paste0('r', x, '_sim'))
-
-#transform data
-transformed.data <- cbind(asinh(all.data[,1:43]), all.data[,44:86])
-
-#get VR-Eye search info
-goals <- multi.labels$goal
-ref.labels <- multi.labels$search_label
-sim.thresholds <- multi.labels$threshold
-
 #set similarity bins
 multi.bins <- c(85:100)
-multi.bias = 0.001
-
-# #pull colors from original palette
-pops.to.plot = list('27'='#790807', #Treg
-                    '5'='#FBB700', #CD4
-                    '7'='#BF7C00', #CD8
-                    '3'='#474278', #B cell
-                    '13'='#DB6E6C', #myeloid
-                    '19'='plum2', #pDC
-                    '11'='#3E6887', #fibroblast
-                    '9'='#62B1BB', #endothelial
-                    '29'='#235C3A' #tumor
-                    )
+multi.bias <- 0.001 #bias < 1 compresses the top of the scale
 
 #calculate color gradient for each cell type
-my.colors <- c()
-sim.list <- c()
-for (i in 1:length(pops.to.plot)) { 
+pops.to.plot <- c(1, 5:14) #skip NK cells, plasma cells, and T cells
+my.colors <- sim.list <- c()
+for (i in pops.to.plot) { 
   #get VR search info
-  VR.round.num = names(pops.to.plot)[[i]]
-  VR.round.name = multi.labels[VR.round.num, 3] #get search goal for this round
-  sim.col = round.list[VR.round.num]
+  goal <- goals[i]
+  sim.col <- paste0("r", i, "_", goal, "_sim")
   sim.list <- c(sim.list, sim.col)
-  max.sim <- floor(max(all.data[,sim.col]))-1
+  max.sim <- floor(max(slide.data[,sim.col]))-1
 
   #create a gradient from white to this population's chosen color
-  these.colors = c(colorRampPalette(c("lightgrey", pops.to.plot[i]), 
-                                    bias=multi.bias)(length(multi.bins)-(100-max.sim)), 
-                   rep(pops.to.plot[i], 100-max.sim))
+  cell.type.color <- cell.type.palette.all[names(cell.type.labels.all[which(cell.type.labels.all==goal)][1])]
+  print(paste0(goal, ': ', cell.type.color))
+  these.colors <- c(colorRampPalette(c("lightgrey", cell.type.color), 
+                                     bias=multi.bias)(length(multi.bins)-(100-max.sim)), 
+                   rep(cell.type.color, 100-max.sim))
   #add to entire list
   my.colors <- c(my.colors, unlist(these.colors))
 }
 my.colors <- unname(my.colors)
 
 
-#slide
-sim.overlay.data <- slide.data
-
 #plot base layer
-sim.overlay.slide.plot = ggplot(sim.overlay.data, aes(x = Center_X, y = Center_Y)) + 
+sim.overlay.slide.plot = ggplot(slide.data, aes(x = Center_X, y = Center_Y)) + 
                           geom_point(color = "gray94", size=1.5) + 
-                          coord_fixed(ratio = graphical.ratio) + 
+                          coord_fixed() + 
                           ylim(1000,0) + labs(x = "x", y = "y") + 
                           theme_bw() + theme(panel.grid = element_blank())
 
@@ -418,24 +393,26 @@ sim.overlay.slide.plot = ggplot(sim.overlay.data, aes(x = Center_X, y = Center_Y
 for (bin in 1:length(multi.bins)) { #plot lowest bins first
   for (pop in 1:length(sim.list)) { #plot sim to each cell type
     #select cells that fall into this bin
-    indxs = which(sim.overlay.data[, sim.list[pop]] >= multi.bins[bin])
-    this.color = my.colors[length(multi.bins)*pop - (length(multi.bins) - bin)]
+    indxs <- which(slide.data[, sim.list[pop]] >= multi.bins[bin])
+    this.color <- my.colors[length(multi.bins)*pop - (length(multi.bins) - bin)]
     sim.overlay.slide.plot <- sim.overlay.slide.plot + 
-                              geom_point(data = sim.overlay.data[indxs, ], 
+                              geom_point(data = slide.data[indxs, ], 
                                          color = this.color, size=1.5) 
   }
 }
 print(sim.overlay.slide.plot)
 
-
 #export
-png(paste0(sim.grad.slide.path, strftime(Sys.time(), "%m_%d "), "all sim overlay_slide ", sample.number, '-', ROI.number, ".png"),
+png(paste0(og.output.path, strftime(Sys.time(), "%m_%d "), "VR-Eye similarity on slide ", sample.number, '-', ROI.number, ".png"),
     height = 1000, width = 1000, res = 200)
 print(sim.overlay.slide.plot)
 dev.off()
 ```
 
 ```{r export as fcs}
+output.path <- paste0(og.output.path, '/output fcs files/')
+dir.create(output.path)
+
 #split data by patient
 separate.fcs.files <- split(multi.df, multi.df$sample.num)
 for (i in 1:length(separate.fcs.files)){
@@ -449,7 +426,7 @@ for (i in 1:length(separate.fcs.files)){
   metadata$maxRange <- apply(mat.input, 2, max)
   input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
   #write file
-  new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_Sample ", i, "_VR-Eye.fcs")
+  new.filename <- paste0(output.path, strftime(Sys.time(),"%Y-%m-%d"), "_Sample ", i, "_VR-Eye.fcs")
   write.FCS(input.flowframe, filename=new.filename)
   print(paste0("FCS file ", i, ': done' ))
 }
