@@ -347,6 +347,9 @@ dev.off()
 ```
 
 ```{r export as fcs}
+output.path <- paste0(og.output.path, '/output fcs files/')
+dir.create(output.path)
+
 #split data by patient
 separate.fcs.files <- split(multi.df[,c(1:54)], multi.df$File_ID)
 for (i in 1:length(separate.fcs.files)){
@@ -361,7 +364,7 @@ for (i in 1:length(separate.fcs.files)){
   input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
   #write file
   sample.name <- sample.levels[reduce.data[1, 'File_ID']] 
-  new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR-Eye.fcs")
+  new.filename <- paste0(output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR-Eye.fcs")
   write.FCS(input.flowframe, filename=new.filename)
   print(paste0("FCS file ", i, ': ', sample.name, " done"))
 }
