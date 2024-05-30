@@ -22,7 +22,7 @@ tsne_density <- function(tsne.axes, orientation=1, capt='', export=TRUE, output_
   
   #export
   if(export==TRUE){
-    png(paste(output_path, strftime(Sys.time(),"%Y-%m-%d"), " t-SNE density.png"), height = 1000, width = 1000, res=200)
+    png(paste0(output_path, strftime(Sys.time(),"%Y-%m-%d"), " t-SNE density.png"), height = 1000, width = 1000, res=200)
     print(tsne.by.density)
     dev.off()
   }
@@ -67,7 +67,7 @@ tsne_heat_on_markers <- function(tsne.axes, transformed.marker.data, n_col, orie
   }
   #export
   if(export==TRUE){
-    png(paste(output_path, strftime(Sys.time(),"%Y-%m-%d"), " t-SNE_heat on markers.png"),height = n_row*500, width = n_col*500)
+    png(paste0(output_path, strftime(Sys.time(),"%Y-%m-%d"), " t-SNE_heat on markers.png"),height = n_row*500, width = n_col*500)
     print(tsne.by.marker)
     dev.off()
   }
