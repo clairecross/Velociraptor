@@ -226,7 +226,7 @@ for (j in 1:length(goals)){
   print('saving data to multi.df')
   this.round <- c()
   this.round = cbind(
-    VRPTR_round = current_round,
+    VR_round = current_round,
     search_label = ref.label,
     goal = goal,
     min.clust = min.cluster,
