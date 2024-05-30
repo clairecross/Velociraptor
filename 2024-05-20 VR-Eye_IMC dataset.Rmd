@@ -218,7 +218,7 @@ for (i in 1:length(goals)){
   sim <- sim_scores(common.MEM.scores, common.ref.MEM.score)
   my.range <- max(sim)-min(sim)
   sim.data <- cbind(marker.data, File_ID=multi.df$sample.num, tSNE.data, sim)
-  sim.plot <- VR_Eye_sim_plot(sim.data, ref.label)
+  sim.plot <- VR_Eye_sim_plot(sim.data, ref.label, orientation=1)
   #export
   png(paste0(run.folder, goal, " similarity.png"),
       height = 1500, width = 1500, res = 200)
@@ -229,7 +229,7 @@ for (i in 1:length(goals)){
   print('saving data to multi.df')
   this.round <- c()
   this.round = cbind(
-    VRPTR_round = current_round,
+    VR_round = current_round,
     search_label = ref.label,
     goal = goal,
     min.clust = min.cluster,
@@ -246,13 +246,15 @@ for (i in 1:length(goals)){
   rds.name <- paste0(og.output.path, 'multi-run VR-Eye.RData')
   save(multi.df, file = rds.name)
 }
+load(paste0(og.output.path, 'multi-run VR-Eye.RData'))
+load(paste0(og.output.path, 'multi-run labels.RData'))
 ```
 
 ```{r select slide to plot}
 #select data
 sample.number <- 9
 ROI.number <- 2
-patient.data <- all.data[which(all.data$sample.num==sample.number),]
+patient.data <- multi.df[which(multi.df$sample.num==sample.number),]
 slide.data <- patient.data[which(patient.data$ROI.num==ROI.number), ]
 
 #set color palettes
@@ -263,58 +265,76 @@ cell.type.labels.all <- c('-1'='Unclassified', '1'='aDC', '2'='B cell',
                           '12'='pDC', '13'='Plasma cell', 
                           '14'='Stromal', '15'='T Cell', '16'='Treg', 
                           '17'='Tumor', '18'='Tumor', '19'='Tumor', '20'='Tumor')
-cell.type.palette.all <- c('-1'='lightgrey', '1'='plum2', '11'='black',
-                           '12'='lightpink', '13'='plum4', '16'='darkorange3', 
+cell.type.palette.all <- c('-1'='lightgrey', #unclassified 
+                           '1'='plum2', #aDC
                            '2'='#474278', #B
-                           '15'='chocolate1', '3'='#FBB700', '4'='#FBB700', '5'='#BF7C00', '6'='#BF7C00', #T
-                           '9'='#DB6E6C', '10'='#790807', #myeloid and neutrophil
-                           '7'='#62B1BB', '8'='#093F67', '14'='#9BB6AB', #endo, stromal, fibro
+                           '3'='#FBB700', '4'='#FBB700', #CD4 T cell
+                           '5'='#BF7C00', '6'='#BF7C00', #CD8 T cell
+                           '7'='#62B1BB', #endothelial
+                           '8'='#3E6887', #fibroblast
+                           '9'='#DB6E6C', #myeloid
+                           '10'='#DE1807', #neutrophil
+                           '11'='black', #NK
+                           '12'='lightpink', #pDC
+                           '13'='plum4', #plasma cell
+                           '14'='darkgrey', #stromal
+                           '15'='chocolate1', #T cell
+                           '16'='#790807', #Treg
                            '17'='#235C3A', '18'='#235C3A', '19'='#235C3A', '20'='#235C3A') #tumor
+
+#create output folders
+slide.exp.path <- paste0(og.output.path, '/protein expression on slide/')
+if (!dir.exists(slide.exp.path)) {dir.create(slide.exp.path)}
+slide.sim.path <- paste0(og.output.path, '/similarity on slide/')
+if (!dir.exists(slide.sim.path)) {dir.create(slide.sim.path)}
+
+#plot Tietscher cell types on selected slide
+slide.plot <- ggplot(slide.data, aes(x=Center_X, y=Center_Y, col=as.factor(cell.subtype.num))) + 
+                    geom_point(size=1.5) + theme_bw() + theme(panel.grid=element_blank()) + 
+                    scale_color_manual(name='Cell Type', labels=cell.type.labels.all, 
+                                       values=cell.type.palette.all) + coord_fixed() +
+                    ylim(1000,0) +labs(title='Tietscher Pop', x='x', y='y')
+print(slide.plot)
+#export
+png(paste0(og.output.path, 'slide ', sample.number, '-', ROI.number, ' Tietscher cell types.png'), 
+    height=1000, width=1400, res=200)
+print(slide.plot)
+dev.off()
 ```
 
 ```{r plot protein expression on slide}
-#select slide
-sample.number <- 9
-ROI.number <- 2
-
-#plot markers
+#selct markers to plot 
 marker.names <- c('HLA-DR', 'CD68', 'CD15', 'CD20', 'CD3', 
                   'CD4', 'CD8a', 'CD31_vWF', 'panCK')
+
+#plot each marker's protin expression on the selected slide
 for (i in marker.names){
-  to.plot <- transformed.data[which(transformed.data$sample.num==sample.number & transformed.data$ROI.num==ROI.number), ]
-  expression.plot <- ggplot(to.plot, aes(x=Center_X, y=Center_Y, col=to.plot[,as.character(i)])) + 
-                        scale_color_gradient(name='arcsinh expression', low='lightgrey', high='darkblue') +
+  expression.plot <- ggplot(slide.data, 
+                            aes(x=Center_X, y=Center_Y, col=asinh(slide.data[,as.character(i)]/1))) + 
+                        scale_color_gradient(name='arcsinh expression', low='lightgrey', high='#2C2C7F') +
                         geom_point(size=1.5) + theme_bw() + theme(panel.grid=element_blank()) + 
                         coord_fixed() + labs(title=i, x='x', y='y') + ylim(1000,0) 
-  # print(expression.plot)
-    
   #export
-  png(paste0(og.output.path, '/VR plots/protein expression on slide/sample ', sample.number, ' ROI ', 
-             ROI.number, '_', i, ' expression.png'), 
+  png(paste0(slide.exp.path, 'sample ', sample.number, ' ROI ', ROI.number, '_', i, ' expression.png'), 
       width=1200, height=1000, res=200)
   print(expression.plot)
   dev.off()
 }
 ```
 
-```{r}
-
-
-
-#plot VR pop similarity on slide
+```{r plot VR similarity on slide}
+#plot VR-Eye similarity on selected slide for selected cell populations
 percentile <- 0.02
-pop.names <- c('aDC', 'B cell', 'CD4 T cell', 'CD8 T cell', 'Endothelial', 
-               'Fibroblast', 'Myeloid', 'Neutrophil', 'NK', 'pDC', 
-               'Plasma Cell', 'Treg', 'Tumor')
-counter <- 1
-for (i in c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 27, 29)){
-  sim.col <- paste0('r', i, '_sim')
+for (i in 1:length(goals)){
+  #select similarity column
+  goal <- goals[i]
+  sim.col <- paste0("r", i, "_", goal, "_sim")
   
-  #get data
+  #select data to plot
   to.plot <- slide.data[,c('Center_X', 'Center_Y', sim.col)]
-  min.sim <- min(all.data[,sim.col])
+  min.sim <- min(to.plot[,sim.col])
   max.sim <- 100
-  bp <- quantile(to.plot[,3], percentile) #bottom percentile to account for outliers
+  bp <- quantile(to.plot[,3], percentile) #set bottom percentile as the bottom of the similarity scale to account for outliers
   sim.step <- (max.sim-bp)/4
   
   #plot 
@@ -325,42 +345,94 @@ for (i in c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 27, 29)){
                                           values = rescale(c(0, min.sim, min.sim, bp, bp+sim.step, 
                                                              bp+2*sim.step, bp+3*sim.step, max.sim)), 
                                           name = "Similarity", limits=c(0, max.sim)) +
-                    labs(title = paste0("Similarity: ", pop.names[counter]), x='x', y='y') +
+                    labs(title = paste0(goal, " similarity"), x='x', y='y') +
                     theme_bw() + theme(panel.grid = element_blank())
-  print(slide.VR.plot)
-      
   #export
-  png(paste0('C:/Users/clacr/Box/Irish_Lab/Projects/Tietscher et al IMC breast cancer/output files/02-21 VR cell similarity on slide 9-2/slide ', sample.number, '-', ROI.number, '_', pop.names[counter], '_VR similarity_bottom percentile = ', percentile, '.png'), 
+  png(paste0(slide.sim.path, sample.number, '-', ROI.number, '_', goal, '_VR similarity', percentile, '.png'), 
       width=1200, height=1000, res=200)
   print(slide.VR.plot)
   dev.off()
-  
-  #increase counter
-  counter <- counter + 1
 }
 ```
 
 ```{r plot similarity overlay on slide}
-#select data
-sample.number <- 9
-ROI.number <- 2
-patient.data <- all.data[which(all.data$sample.num==sample.number),]
-to.plot <- patient.data[which(patient.data$ROI.num==ROI.number), ]
+#get similarity column names
+round.list <- sapply(multi.labels$VRPTR_round, function(x) paste0('r', x, '_sim'))
 
-#plot Tietscher cell types on selected slide
-slide.T.plot <- ggplot(to.plot, aes(x=Center_X, y=Center_Y, col=as.factor(cell.subtype.num))) + 
-                    geom_point(size=1.5) + theme_bw() + theme(panel.grid=element_blank()) + 
-                    scale_color_manual(name='Cell Type', labels=cell.subtype.levels, 
-                                       values=cell.type.palette.all) + coord_fixed() +
-                    ylim(1000,0) +labs(title='Tietscher Pop', x='x', y='y')
-print(slide.T.plot)
+#transform data
+transformed.data <- cbind(asinh(all.data[,1:43]), all.data[,44:86])
+
+#get VR-Eye search info
+goals <- multi.labels$goal
+ref.labels <- multi.labels$search_label
+sim.thresholds <- multi.labels$threshold
+
+#set similarity bins
+multi.bins <- c(85:100)
+multi.bias = 0.001
+
+# #pull colors from original palette
+pops.to.plot = list('27'='#790807', #Treg
+                    '5'='#FBB700', #CD4
+                    '7'='#BF7C00', #CD8
+                    '3'='#474278', #B cell
+                    '13'='#DB6E6C', #myeloid
+                    '19'='plum2', #pDC
+                    '11'='#3E6887', #fibroblast
+                    '9'='#62B1BB', #endothelial
+                    '29'='#235C3A' #tumor
+                    )
+
+#calculate color gradient for each cell type
+my.colors <- c()
+sim.list <- c()
+for (i in 1:length(pops.to.plot)) { 
+  #get VR search info
+  VR.round.num = names(pops.to.plot)[[i]]
+  VR.round.name = multi.labels[VR.round.num, 3] #get search goal for this round
+  sim.col = round.list[VR.round.num]
+  sim.list <- c(sim.list, sim.col)
+  max.sim <- floor(max(all.data[,sim.col]))-1
+
+  #create a gradient from white to this population's chosen color
+  these.colors = c(colorRampPalette(c("lightgrey", pops.to.plot[i]), 
+                                    bias=multi.bias)(length(multi.bins)-(100-max.sim)), 
+                   rep(pops.to.plot[i], 100-max.sim))
+  #add to entire list
+  my.colors <- c(my.colors, unlist(these.colors))
+}
+my.colors <- unname(my.colors)
+
+
+#slide
+sim.overlay.data <- slide.data
+
+#plot base layer
+sim.overlay.slide.plot = ggplot(sim.overlay.data, aes(x = Center_X, y = Center_Y)) + 
+                          geom_point(color = "gray94", size=1.5) + 
+                          coord_fixed(ratio = graphical.ratio) + 
+                          ylim(1000,0) + labs(x = "x", y = "y") + 
+                          theme_bw() + theme(panel.grid = element_blank())
+
+#plot cells in each bin
+for (bin in 1:length(multi.bins)) { #plot lowest bins first
+  for (pop in 1:length(sim.list)) { #plot sim to each cell type
+    #select cells that fall into this bin
+    indxs = which(sim.overlay.data[, sim.list[pop]] >= multi.bins[bin])
+    this.color = my.colors[length(multi.bins)*pop - (length(multi.bins) - bin)]
+    sim.overlay.slide.plot <- sim.overlay.slide.plot + 
+                              geom_point(data = sim.overlay.data[indxs, ], 
+                                         color = this.color, size=1.5) 
+  }
+}
+print(sim.overlay.slide.plot)
+
+
 #export
-png(paste0(og.output.path, 'slide ', sample.number, '-', ROI.number, ' Tietscher cell types_with legend.png'), height=1000, width=1400, res=200)
-print(slide.T.plot)
+png(paste0(sim.grad.slide.path, strftime(Sys.time(), "%m_%d "), "all sim overlay_slide ", sample.number, '-', ROI.number, ".png"),
+    height = 1000, width = 1000, res = 200)
+print(sim.overlay.slide.plot)
 dev.off()
-
-
-
 ```
 
 ```{r export as fcs}
@@ -377,9 +449,8 @@ for (i in 1:length(separate.fcs.files)){
   metadata$maxRange <- apply(mat.input, 2, max)
   input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
   #write file
-  sample.name <- sample.levels[reduce.data[1, 'File_ID']] 
-  new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR-Eye.fcs")
+  new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_Sample ", i, "_VR-Eye.fcs")
   write.FCS(input.flowframe, filename=new.filename)
-  print(paste0("FCS file ", i, ': ', sample.name, " done"))
+  print(paste0("FCS file ", i, ': done' ))
 }
 ```
