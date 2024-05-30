@@ -215,7 +215,7 @@ for (j in 1:length(goals)){
   sim <- sim_scores(common.MEM.scores, common.ref.MEM.score)
   my.range <- max(sim)-min(sim)
   sim.data <- cbind(marker.data, File_ID = i, tSNE.data, sim)
-  sim.plot <- VR_Eye_sim_plot(sim.data, ref.label)
+  sim.plot <- VR_Eye_sim_plot(sim.data, ref.label, orientation=2)
   #export
   png(paste0(run.folder, goal, " similarity.png"),
       height = 1500, width = 1500, res = 200)
@@ -257,7 +257,7 @@ for(i in 1:length(goals)){
   run.folder <- paste0(og.output.path, goal, '/')
   
   sim.data$sim_bin <- ifelse(multi.df[,sim.col] >= sim.thresholds[i], sim.thresholds[i], 0)
-  bin_plot <- VR_Eye_bin_plot(cbind(sim.data, tSNE.data), ref.label, sim.thresholds[i])
+  bin_plot <- VR_Eye_bin_plot(cbind(sim.data, tSNE.data), ref.label, sim.thresholds[i], orientation=2)
   print(bin_plot)
   #export
   png(paste0(run.folder, goal, " bin_", sim.thresholds[i], ".png"),
@@ -348,13 +348,13 @@ dev.off()
 
 ```{r export as fcs}
 #split data by patient
-separate.fcs.files <- split(multi.df, multi.df$File_ID)
+separate.fcs.files <- split(multi.df[,c(1:54)], multi.df$File_ID)
 for (i in 1:length(separate.fcs.files)){
   #format data
   reduce.data <- separate.fcs.files[[i]]
   mat.input <- as.matrix(reduce.data)
   #set metadata
-  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(multi.df))
+  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(reduce.data))
   metadata$range <- apply(apply(mat.input, 2, range), 2, diff)
   metadata$minRange <- apply(mat.input, 2, min)
   metadata$maxRange <- apply(mat.input, 2, max)
