@@ -1,0 +1,6 @@
+#Rhistory file
+*.Rhistory
+
+#ignore RAPID dataset output
+output files/VR-Claw_RAPID/
+output files/VR-Eye_RAPID/
