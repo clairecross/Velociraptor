@@ -164,21 +164,23 @@ if(is.na(knn.data.file[1])){
 
 ```{r set VR searching info}
 #specify searching labels and goals
-goals <- c('B cell', 'plasma cell', 'NK', 'T cell', 'CD4 T cell', 'CD8 T cell', 'Treg', 'aDC', 'pDC', 'Myeloid', 'Neutrophil', 'Tumor', 'Fibroblast', 'Endothelial')
-ref.labels <- c('HLA-DR+7 CD20+6 CD45RA+6 CD45RO+6 MMP9+3 E-Cadherin+2 CD4+2 CD27+1 CD68+1 CD3+1 CD11c+1 PD1+1 Tim-3+1 CD274+1 FOXP3+1 CD8a+1 CD140b+1 CD40+1 CD31_vWF+1 CD15+1 SMA+0 panCK+0 CD38+0 CD303+0 LAG-3+0 CD7+0 LAMP3+0 TCF7+0 ICOS+0 GITR+0 CD21+0', 
-                'HLA-DR+4 MMP9+3 CD45RO+3 CD31_vWF+3 E-Cadherin+2 CD38+2 CD68+2 CD45RA+2 Tim-3+2 CD140b+2 CD4+2 SMA+1 CD27+1 CD303+1 CD7+1 CD3+1 CD11c+1 PD1+1 CD274+1 TCF7+1 GITR+1 CD40+1 CD15+1 panCK+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 ICOS+0 CD8a+0 CD21+0',
-                'CD45RO+4 HLA-DR+3 CD7+2 MMP9+2 CD140b+2 CD4+2 SMA+1 E-Cadherin+1 CD68+1 CD45RA+1 CD3+1 CD11c+1 Tim-3+1 GITR+1 CD31_vWF+1 CD15+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 CD40+0 CD21+0',
-                'CD45RO+7 HLA-DR+6 CD4+6 CD3+5 CD7+3 MMP9+3 CD8a+3 CD68+2 CD11c+2 Tim-3+2 CD140b+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD38+1 CD27+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 FOXP3+1 ICOS+1 GITR+1 CD40+1 CD15+1 panCK+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD21+0', 
-                'CD45RO+7 HLA-DR+6 CD4+6 CD3+5 CD7+3 MMP9+3 CD140b+3 CD68+2 CD11c+2 Tim-3+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD27+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 FOXP3+1 ICOS+1 CD8a+1 GITR+1 CD40+1 CD15+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD21+0', 
-                'CD8a+7 HLA-DR+6 CD45RO+6 CD3+5 CD4+4 CD7+3 MMP9+3 CD68+2 CD11c+2 Tim-3+2 CD140b+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD38+1 CD27+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 ICOS+1 GITR+1 CD40+1 CD15+1 panCK+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 CD21+0', 
-                'HLA-DR+7 CD45RO+7 CD4+6 CD3+5 CD7+4 FOXP3+4 CD68+3 Tim-3+3 MMP9+3 CD140b+3 CD27+2 CD11c+2 ICOS+2 GITR+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD38+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 CD40+1 CD15+1 panCK+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD8a+0 CD21+0', 
-                'HLA-DR+9 CD45RO+4 CD4+4 CD68+3 Tim-3+3 MMP9+3 E-Cadherin+2 CD11c+2 CD140b+2 CD31_vWF+2 SMA+1 CD27+1 CD7+1 CD45RA+1 CD3+1 LAMP3+1 PD1+1 CD274+1 CD40+1 CD15+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD21+0', 
-                'HLA-DR+6 CD45RO+4 CD4+4 CD68+3 MMP9+3 CD303+2 CD45RA+2 Tim-3+2 CD140b+2 CD31_vWF+2 E-Cadherin+1 CD27+1 CD7+1 CD3+1 CD11c+1 PD1+1 CD274+1 CD15+1 SMA+0 panCK+0 CD38+0 LAG-3+0 CD20+0 LAMP3+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0', 
-                'HLA-DR+8 CD68+6 CD45RO+4 CD4+4 CD11c+3 Tim-3+3 MMP9+3 CD140b+2 CD31_vWF+2 SMA+1 E-Cadherin+1 CD7+1 CD45RA+1 CD3+1 PD1+1 CD274+1 CD40+1 CD15+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD21+0', 
-                'CD15+10 MMP9+4 CD45RO+4 HLA-DR+3 E-Cadherin+2 CD4+2 SMA+1 CD68+1 CD45RA+1 CD11c+1 Tim-3+1 CD274+1 CD140b+1 CD31_vWF+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 CD3+0 LAMP3+0 PD1+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0', 
-                'panCK+5 E-Cadherin+4 MMP9+3 CD45RO+3 CD140b+2 CD4+2 HLA-DR+1 CD68+1 CD7+1 CD45RA+1 CD3+1 CD11c+1 PD1+1 Tim-3+1 CD274+1 TCF7+1 FOXP3+1 ICOS+1 GITR+1 CD31_vWF+1 CD15+1 SMA+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD8a+0 CD40+0 CD21+0', 
-                'SMA+3 CD45RO+3 CD140b+3 HLA-DR+2 MMP9+2 CD4+2 E-Cadherin+1 CD68+1 CD45RA+1 CD3+1 CD11c+1 Tim-3+1 CD31_vWF+1 CD15+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 LAMP3+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0', 
-                'CD31_vWF+7 CD45RO+4 CD140b+4 SMA+3 HLA-DR+3 MMP9+3 Tim-3+2 CD4+2 E-Cadherin+1 CD27+1 CD68+1 CD7+1 CD45RA+1 CD3+1 CD11c+1 PD1+1 CD274+1 FOXP3+1 GITR+1 CD40+1 CD15+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 TCF7+0 ICOS+0 CD8a+0 CD21+0') 
+goals <- c('aDC', 'B cell', 'CD4 T cell', 'CD8 T cell', 
+           'endothelial', 'fibroblast', 'myeloid', 'neutrophil', 
+           'NK', 'pDC', 'plasma cell', 'Treg', 'tumor')
+
+ref.labels <- c('HLA-DR+9 HLA-ABC+8 CD45RO+5 CD4+5 HH3+3 CD3+3 MMP9+3 CD68+2 CD7+2 IDO1+2 LAMP3+2 CD11c+2 Tim-3+2 Granzyme_B+2 Arginase+2 CD140b+2 CD40+2 CD31_vWF+2 E-Cadherin+1 CD27+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 FOXP3+1 ICOS+1 CD8a+1 CAIX+1 GITR+1 iNOS+1 Ki-67+1 CD15+1 SMA+0 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 CD21+0 Cleaved_CP+0 MPO+0', #aDC
+                'HLA-ABC+7 HLA-DR+6 CD45RA+5 CD45RO+5 CD20+4 HH3+3 CD3+2 MMP9+2 CD4+2 E-Cadherin+1 CD27+1 CD68+1 CD7+1 IDO1+1 CD11c+1 PD1+1 Tim-3+1 Granzyme_B+1 CD274+1 FOXP3+1 CD8a+1 Arginase+1 CD140b+1 CD40+1 CD31_vWF+1 iNOS+1 Cleaved_CP+1 Ki-67+1 CD15+1 SMA+0 panCK+0 CD38+0 CD303+0 LAG-3+0 LAMP3+0 TCF7+0 ICOS+0 CAIX+0 GITR+0 CD21+0 MPO+0', #B cell
+                'HLA-ABC+6 CD45RO+5 HLA-DR+4 CD4+4 CD3+3 HH3+2 MMP9+2 CD140b+2 SMA+1 E-Cadherin+1 CD27+1 CD68+1 CD7+1 CD45RA+1 IDO1+1 CD11c+1 PD1+1 Tim-3+1 Granzyme_B+1 CD274+1 TCF7+1 ICOS+1 GITR+1 Arginase+1 CD31_vWF+1 iNOS+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 CD8a+0 CAIX+0 CD40+0 CD21+0 Cleaved_CP+0 Ki-67+0 CD15+0 MPO+0', #CD4 T cell
+                'HLA-ABC+7 CD8a+5 HLA-DR+4 CD45RO+4 CD3+3 HH3+2 MMP9+2 CD140b+2 CD4+2 SMA+1 E-Cadherin+1 CD27+1 CD68+1 CD7+1 CD45RA+1 IDO1+1 CD11c+1 PD1+1 Tim-3+1 Granzyme_B+1 CD274+1 TCF7+1 GITR+1 Arginase+1 CD31_vWF+1 iNOS+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 ICOS+0 CAIX+0 CD40+0 CD21+0 Cleaved_CP+0 Ki-67+0 CD15+0 MPO+0', #CD8 T cell
+                'CD31_vWF+7 HLA-ABC+7 SMA+3 HLA-DR+3 MMP9+3 CD45RO+3 CD140b+3 HH3+2 Tim-3+2 Arginase+2 CD4+2 E-Cadherin+1 CD68+1 CD7+1 CD45RA+1 IDO1+1 CD3+1 PD1+1 Granzyme_B+1 FOXP3+1 CAIX+1 CD40+1 iNOS+1 Ki-67+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD11c+0 CD274+0 TCF7+0 ICOS+0 CD8a+0 GITR+0 CD21+0 Cleaved_CP+0 CD15+0 MPO+0', #endothelial
+                'HLA-ABC+5 SMA+3 CD140b+3 HH3+2 MMP9+2 CD45RO+2 E-Cadherin+1 HLA-DR+1 CD68+1 CD3+1 Tim-3+1 Granzyme_B+1 Arginase+1 CD4+1 CD31_vWF+1 Ki-67+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 CD45RA+0 IDO1+0 LAMP3+0 CD11c+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 CAIX+0 GITR+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 CD15+0 MPO+0', #fibroblast
+                'HLA-DR+6 HLA-ABC+6 CD68+3 CD45RO+3 HH3+2 CD11c+2 Tim-3+2 MMP9+2 CD140b+2 CD4+2 SMA+1 E-Cadherin+1 CD45RA+1 IDO1+1 CD3+1 Granzyme_B+1 Arginase+1 CD31_vWF+1 CD15+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 LAMP3+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 CAIX+0 GITR+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 Ki-67+0 MPO+0', #myeloid
+                'CD15+8 HLA-ABC+7 CD45RO+4 HLA-DR+3 MMP9+3 Arginase+3 HH3+2 E-Cadherin+2 CD4+2 MPO+2 CD68+1 CD45RA+1 IDO1+1 CD3+1 CD11c+1 Tim-3+1 Granzyme_B+1 CD274+1 CAIX+1 CD140b+1 CD31_vWF+1 SMA+0 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 LAMP3+0 PD1+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 Ki-67+0', #neutrophil
+                'HLA-ABC+7 CD7+4 HLA-DR+3 CD45RO+3 HH3+2 CD45RA+2 Tim-3+2 MMP9+2 CD4+2 E-Cadherin+1 CD68+1 IDO1+1 CD3+1 CD11c+1 Granzyme_B+1 CD274+1 CD8a+1 GITR+1 Arginase+1 CD140b+1 CD31_vWF+1 Ki-67+1 CD15+1 SMA+0 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 PD1+0 TCF7+0 FOXP3+0 ICOS+0 CAIX+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 MPO+0', #NK
+                'HLA-ABC+7 HLA-DR+6 CD45RO+4 CD4+4 HH3+3 CD68+3 CD45RA+3 MMP9+3 Granzyme_B+3 CD303+2 CD3+2 Tim-3+2 CD140b+2 CD31_vWF+2 E-Cadherin+1 CD27+1 CD7+1 IDO1+1 CD11c+1 PD1+1 CD274+1 TCF7+1 CD8a+1 CAIX+1 GITR+1 Arginase+1 CD40+1 iNOS+1 Ki-67+1 CD15+1 SMA+0 panCK+0 CD38+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 ICOS+0 CD21+0 Cleaved_CP+0 MPO+0', #pDC
+                'HLA-ABC+7 HLA-DR+3 MMP9+3 CD45RO+3 CD31_vWF+3 HH3+2 E-Cadherin+2 CD38+2 CD45RA+2 CD3+2 Tim-3+2 Arginase+2 CD140b+2 CD4+2 CD27+1 CD303+1 CD68+1 CD7+1 IDO1+1 CD11c+1 PD1+1 Granzyme_B+1 CD274+1 TCF7+1 ICOS+1 CAIX+1 GITR+1 CD40+1 iNOS+1 Ki-67+1 SMA+0 panCK+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 CD8a+0 CD21+0 Cleaved_CP+0 CD15+0 MPO+0', #plasma cell
+                'HLA-ABC+7 HLA-DR+5 CD45RO+5 CD4+4 CD3+3 HH3+2 CD68+2 CD7+2 Tim-3+2 MMP9+2 FOXP3+2 CD140b+2 SMA+1 E-Cadherin+1 CD27+1 CD45RA+1 IDO1+1 CD11c+1 PD1+1 Granzyme_B+1 CD274+1 ICOS+1 GITR+1 Arginase+1 CD40+1 CD31_vWF+1 iNOS+1 Ki-67+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 TCF7+0 CD8a+0 CAIX+0 CD21+0 Cleaved_CP+0 CD15+0 MPO+0', #Treg
+                'HLA-ABC+5 HH3+3 E-Cadherin+3 panCK+3 MMP9+2 CD45RO+2 Arginase+2 CD4+2 HLA-DR+1 CD68+1 CD45RA+1 IDO1+1 CD3+1 Tim-3+1 Granzyme_B+1 CAIX+1 CD140b+1 CD31_vWF+1 Ki-67+1 CD15+1 SMA+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 LAMP3+0 CD11c+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 MPO+0') #tumor
 ```
 
 ```{r, VR-Eye}
@@ -348,7 +350,7 @@ for (i in 1:length(goals)){
                     labs(title = paste0(goal, " similarity"), x='x', y='y') +
                     theme_bw() + theme(panel.grid = element_blank())
   #export
-  png(paste0(slide.sim.path, sample.number, '-', ROI.number, '_', goal, '_VR similarity', percentile, '.png'), 
+  png(paste0(slide.sim.path, sample.number, '-', ROI.number, '_', goal, '_VR similarity.png'), 
       width=1200, height=1000, res=200)
   print(slide.VR.plot)
   dev.off()
@@ -361,7 +363,7 @@ multi.bins <- c(85:100)
 multi.bias <- 0.001 #bias < 1 compresses the top of the scale
 
 #calculate color gradient for each cell type
-pops.to.plot <- c(1, 5:14) #skip NK cells, plasma cells, and T cells
+pops.to.plot <- c(1:8, 9:13) #skip NK cells (too few)
 my.colors <- sim.list <- c()
 for (i in pops.to.plot) { 
   #get VR search info
@@ -371,8 +373,7 @@ for (i in pops.to.plot) {
   max.sim <- floor(max(slide.data[,sim.col]))-1
 
   #create a gradient from white to this population's chosen color
-  cell.type.color <- cell.type.palette.all[names(cell.type.labels.all[which(cell.type.labels.all==goal)][1])]
-  print(paste0(goal, ': ', cell.type.color))
+  cell.type.color <- cell.type.palette.all[names(cell.type.labels.all[which(tolower(cell.type.labels.all)==tolower(goal))][1])]
   these.colors <- c(colorRampPalette(c("lightgrey", cell.type.color), 
                                      bias=multi.bias)(length(multi.bins)-(100-max.sim)), 
                    rep(cell.type.color, 100-max.sim))
@@ -383,10 +384,10 @@ my.colors <- unname(my.colors)
 
 
 #plot base layer
-sim.overlay.slide.plot = ggplot(slide.data, aes(x = Center_X, y = Center_Y)) + 
+sim.overlay.slide.plot <- ggplot(slide.data, aes(x = Center_X, y = Center_Y)) + 
                           geom_point(color = "gray94", size=1.5) + 
                           coord_fixed() + 
-                          ylim(1000,0) + labs(x = "x", y = "y") + 
+                          ylim(1000,0) + labs(x = "x", y = "y", title='VR-Eye Similarity') + 
                           theme_bw() + theme(panel.grid = element_blank())
 
 #plot cells in each bin
@@ -403,7 +404,7 @@ for (bin in 1:length(multi.bins)) { #plot lowest bins first
 print(sim.overlay.slide.plot)
 
 #export
-png(paste0(og.output.path, strftime(Sys.time(), "%m_%d "), "VR-Eye similarity on slide ", sample.number, '-', ROI.number, ".png"),
+png(paste0(og.output.path, 'slide ', sample.number, '-', ROI.number, " VR-Eye similarity overlay.png"),
     height = 1000, width = 1000, res = 200)
 print(sim.overlay.slide.plot)
 dev.off()
