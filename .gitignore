@@ -7,3 +7,6 @@ output files/VR-Eye_RAPID/
 
 #ignore IMC dataset output
 output files/VR-Eye_IMC/
+
+#ignore vignettes folder (work in progress)
+vignettes/
