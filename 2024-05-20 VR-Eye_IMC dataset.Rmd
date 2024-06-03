@@ -4,6 +4,10 @@ author: "Claire Cross, Cass Mayeda"
 date: "2024-05-20"
 ---
 
+#IMC dataset downloaded from: https://doi.org/10.5281/zenodo.4911135. 
+#Tietscher Sandra. (2022). Imaging Mass Cytometry Dataset of exhausted and non-exhausted breast cancer microenvironments [Data set]. Zenodo. https://doi.org/10.5281/zenodo.4911135 
+#Tietscher, S., Wagner, J., Anzeneder, T. et al. A comprehensive single-cell map of T cell exhaustion-associated immune environments in human breast cancer. Nat Commun 14, 98 (2023). https://doi.org/10.1038/s41467-022-35238-w
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 

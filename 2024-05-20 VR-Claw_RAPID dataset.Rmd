@@ -4,6 +4,9 @@ author: "Claire Cross"
 date: "05-20-2024"
 ---
 
+#RAPID dataset downloaded from: http://flowrepository.org/id/FR-FCM-Z24K
+#Leelatian, N., Sinnaeve, J. et al. Unsupervised machine learning reveals risk stratifying glioblastoma tumor cells. eLife 9 (2020). https://doi.org/10.7554/eLife.56879 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
