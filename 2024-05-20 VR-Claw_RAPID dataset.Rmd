@@ -8,9 +8,8 @@ date: "05-20-2024"
 #Leelatian, N., Sinnaeve, J. et al. Unsupervised machine learning reveals risk stratifying glioblastoma tumor cells. eLife 9 (2020). https://doi.org/10.7554/eLife.56879 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-
 # # uncomment lines below to install packages
+# install.packages("knitr", repos = "http://cran.us.r-project.org")
 # if (!require("BiocManager", quietly = TRUE))
 #    install.packages("BiocManager")
 # BiocManager::install("cytoMEM")
@@ -27,6 +26,9 @@ knitr::opts_chunk$set(echo = TRUE)
 # install.packages("fancycut", repos = "http://cran.us.r-project.org")
 # install.packages("dbscan", repos = "http://cran.us.r-project.org")
 # install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+# install.packages("viridis", repos = "http://cran.us.r-project.org")
+
+knitr::opts_chunk$set(echo = TRUE)
 ``` 
 
 ```{r initialization}
@@ -44,7 +46,8 @@ suppressPackageStartupMessages({library(cytoMEM)
                                 library(FNN)
                                 library(fancycut)
                                 library(dbscan)
-                                library(ggplot2)})
+                                library(ggplot2)
+                                library(viridis)})
 source('./R/general_plots.R')
 source('./R/VR-Claw_plots.R')
 source('./R/VR-Claw_functions.R')
@@ -66,6 +69,18 @@ data.list <- lapply(lapply(fcs.files, read.FCS, truncate_max_range = FALSE), exp
 combined.patient.data <- as.data.frame(do.call(rbind, mapply(cbind, data.list, "File_ID"= c(1:length(data.list)), SIMPLIFY=F)))
 colnames(combined.patient.data)[1:(ncol(combined.patient.data)-1)] <- as.character(read.FCS(fcs.files[1], truncate_max_range=FALSE)@parameters@data[["desc"]])
 colnames(combined.patient.data)
+
+#get sample names
+sample.group <- "RAPID"
+sample.levels <- c()
+split.names <- lapply(fcs.files, function(x) str_split(x, '_')[[1]][1]) #split file names by _
+split.names <- lapply(split.names, function(x) str_split(x, ' ')[[1]]) # split names by space
+#trim date from names
+for(i in 1:length(split.names)){
+  if(length(split.names[[i]]) > 1){
+    sample.levels <- c(sample.levels, split.names[[i]][2]) #ignore data
+  }else{sample.levels <- c(sample.levels, split.names[[i]][1])}
+}
 
 #store number of cells per file
 sample_num <- nrow(combined.patient.data[which(combined.patient.data$File_ID == 1),]) #assumes equal number of cells in every file 
@@ -99,11 +114,11 @@ tsne.plot <- ggplot(tsne.data) + geom_point(aes(x=tSNE2, y=tSNE1), color='lightg
               coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
 print(tsne.plot)
 
-# #plot cell density on t-SNE axes
-# tsne.dens.plot <- tsne_density(tsne.data, export=TRUE, output_path=output.path)
-# 
-# #plot heat on markers
-# tsne.heat.on.markers <- tsne_heat_on_markers(tsne.data, chosen.markers, n_col=5, export=TRUE, output_path=output.path)
+#plot cell density on t-SNE axes
+tsne.dens.plot <- tsne_density(tsne.data, export=TRUE, output_path=output.path, orientation = 2)
+
+#plot heat on markers
+tsne.heat.on.markers <- tsne_heat_on_markers(tsne.data, chosen.markers, n_col=5, export=TRUE, output_path=output.path, orientation = 2)
 ```
 
 ```{r set VR-Claw constants}
@@ -130,44 +145,42 @@ pval.cutoff <- 0.05
 ```
 
 ```{r VR-Claw, warnings=FALSE}
-start_time <- Sys.time()
+# start_time <- Sys.time()
+# 
+# #KNN
+# neighbor.index <- knnx.index(tsne.data, tsne.data, k=kval)                               
+# 
+# #add File_ID data to KNN indices  
+# cluster_and_patient_df <- as.data.frame(cbind(neighbor.index, combined.patient.data$File_ID))
+# colnames(cluster_and_patient_df)[ncol(cluster_and_patient_df)] <- 'File_ID'
+#   
+# #determine which cells belong to which patient (based on sample number)
+# patient_list <- list()
+# for (i in 1:length(unique(cluster_and_patient_df$File_ID))){
+#   patient_list[[i]] <- seq(((i-1)*sample_num + 1), i*sample_num)
+#   if (i==1){ #first patient should include the lower bound in the interval
+#     cell.index.intervals <- paste0('[', ((i-1)*sample_num + 1), ',', i*sample_num, ']')
+#   }else{
+#     cell.index.intervals <- c(cell.index.intervals, paste0('(', ((i-1)*sample_num + 1), ',', i*sample_num, ']'))
+#   }
+# }
+#   
+# #calculate the number of patients present in each neighborhood
+# num.patients <- apply(cluster_and_patient_df, 1, calc_num_patients)
+# 
+# #calculate survival statistics for each neighborhood
+# cox.summary <- apply(cluster_and_patient_df, 1, nbh_analysis)
+#   
+# #export neighborhood data
+# save(num.patients, file=paste0(output.path, 'num patients.RData'))
+# save(cox.summary, file=paste0(output.path, 'cox summary.RData'))
+#   
+# #calculate time elapsed
+# total_time <- Sys.time() - start_time
+# time_diff <- paste(total_time, attr(total_time, 'units')) 
+# print(time_diff)
+# write.table(time_diff, file=paste0(output.path, 'VR-Claw time elapsed.txt'))
 
-#KNN
-neighbor.index <- knnx.index(tsne.data, tsne.data, k=kval)                               
-
-#add File_ID data to KNN indices  
-cluster_and_patient_df <- as.data.frame(cbind(neighbor.index, combined.patient.data$File_ID))
-colnames(cluster_and_patient_df)[ncol(cluster_and_patient_df)] <- 'File_ID'
-  
-#determine which cells belong to which patient (based on sample number)
-patient_list <- list()
-for (i in 1:length(unique(cluster_and_patient_df$File_ID))){
-  patient_list[[i]] <- seq(((i-1)*sample_num + 1), i*sample_num)
-  if (i==1){ #first patient should include the lower bound in the interval
-    cell.index.intervals <- paste0('[', ((i-1)*sample_num + 1), ',', i*sample_num, ']')
-  }else{
-    cell.index.intervals <- c(cell.index.intervals, paste0('(', ((i-1)*sample_num + 1), ',', i*sample_num, ']'))
-  }
-}
-  
-#calculate the number of patients present in each neighborhood
-num.patients <- apply(cluster_and_patient_df, 1, calc_num_patients)
-
-#calculate survival statistics for each neighborhood
-cox.summary <- apply(cluster_and_patient_df, 1, nbh_analysis)
-  
-#export neighborhood data
-save(num.patients, file=paste0(output.path, 'num patients.RData'))
-save(cox.summary, file=paste0(output.path, 'cox summary.RData'))
-  
-#calculate time elapsed
-total_time <- Sys.time() - start_time
-time_diff <- paste(total_time, attr(total_time, 'units')) 
-print(time_diff)
-write.table(time_diff, file=paste0(output.path, 'VR-Claw time elapsed.txt'))
-```
-
-```{r load VR-Claw results}
 #load neighborhood survival data
 load(paste0(output.path, 'cox summary.RData'))
 load(paste0(output.path, 'num patients.RData'))
@@ -321,7 +334,7 @@ write.csv(GPP.clusters, paste0(output.path, '/unfiltered/', strftime(Sys.time(),
 
 ```{r filtering}
 #select populations that are significantly associates with survival following clustering
-sig.clusters <- combined.clusters[which(combined.clusters$cluster %in% final.prog.clusters),]
+sig.clusters <- combined.clusters[which(combined.clusters$cluster %in% prognostic.clusters),]
 
 #count cells per cluster
 split.sig.clusters <- split(sig.clusters, as.factor(sig.clusters$cluster))
@@ -343,7 +356,7 @@ filtered.data[is.na(filtered.data)] <- 0 #replace cluster NAs with 0s
   
   
 #remove clusters that are no longer significant (set cluster number to 0)
-filtered.data[which(!(filtered.data$cluster %in% final.prog.clusters)), 'cluster'] <- 0
+filtered.data[which(!(filtered.data$cluster %in% prognostic.clusters)), 'cluster'] <- 0
 filtered.data[which(filtered.data$cluster == 0), 'status'] <- 'p>0.1'
   
 #filtered VR-Claw Plot
@@ -416,6 +429,32 @@ build_heatmaps(MEM.values, display.thresh = 0, output.files = TRUE,
 ```
 
 ```{r export as fcs}
+output.path <- paste0(output.path, '/output fcs files/')
+dir.create(output.path)
 
+#replace status column with numeric values
+filtered.data$status <- ifelse(filtered.data$status == "p<0.01 HR>1", -2, 
+                               ifelse(filtered.data$status == "p<0.05 HR>1", -1, 
+                                      ifelse(filtered.data$status == "p<0.01 HR<1", 2, 
+                                             ifelse(filtered.data$status == "p<0.05 HR<1", 1, 0))))
+
+#split data by patient
+separate.fcs.files <- split(filtered.data, filtered.data$File_ID)
+for (i in 1:length(separate.fcs.files)){
+  #format data
+  reduce.data <- separate.fcs.files[[i]]
+  mat.input <- as.matrix(reduce.data)
+  #set metadata
+  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(reduce.data))
+  metadata$range <- apply(apply(mat.input, 2, range), 2, diff)
+  metadata$minRange <- apply(mat.input, 2, min)
+  metadata$maxRange <- apply(mat.input, 2, max)
+  input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
+  #write file
+  sample.name <- sample.levels[reduce.data[1, 'File_ID']] 
+  new.filename <- paste0(output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_filtered_VR-Claw.fcs")
+  write.FCS(input.flowframe, filename=new.filename)
+  print(paste0("FCS file ", i, ': ', sample.name, " done"))
+}
 ```
 
