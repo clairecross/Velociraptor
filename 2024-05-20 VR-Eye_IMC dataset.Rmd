@@ -9,9 +9,8 @@ date: "2024-05-20"
 #Tietscher, S., Wagner, J., Anzeneder, T. et al. A comprehensive single-cell map of T cell exhaustion-associated immune environments in human breast cancer. Nat Commun 14, 98 (2023). https://doi.org/10.1038/s41467-022-35238-w
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-
 # # uncomment lines below to install packages
+# install.packages("knitr", repos = "http://cran.us.r-project.org")
 # if (!require("BiocManager", quietly = TRUE))
 #    install.packages("BiocManager")
 # BiocManager::install("Biobase")
@@ -20,16 +19,15 @@ knitr::opts_chunk$set(echo = TRUE)
 # install.packages("tidyverse", repos = "http://cran.us.r-project.org")
 # install.packages("cowplot", repos = "http://cran.us.r-project.org")
 # install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
-# #install.packages("viridis", repos = "http://cran.us.r-project.org")
-# #install.packages("data.table", repos = "http://cran.us.r-project.org")
 # install.packages("stringr", repos = "http://cran.us.r-project.org")
 # install.packages("FNN", repos = "http://cran.us.r-project.org")
-# #install.packages("matrixStats", repos = "http://cran.us.r-project.org")
 # BiocManager::install("cytoMEM")
-# # install.packages("gplots", repos = "http://cran.us.r-project.org")
-# # install.packages("gbutils", repos = "http://cran.us.r-project.org")
 # install.packages("dbscan", repos = "http://cran.us.r-project.org")
 # install.packages("scales", repos = "http://cran.us.r-project.org")
+# install.packages("viridis", repos = "http://cran.us.r-project.org")
+# install.packages("ggbeeswarm", repos = "http://cran.us.r-project.org")
+
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r initialization}
