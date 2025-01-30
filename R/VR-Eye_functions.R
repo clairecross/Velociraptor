@@ -1,7 +1,3 @@
-library(matrixStats)
-library(FNN)
-source("R/VR-Eye_support_functions.R")
-
 parse_search_label <- function(ref.label) {
   split.ref.label <- str_split(ref.label, ' ')
   ref.marker.lst <- c() 
