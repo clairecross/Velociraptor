@@ -46,6 +46,7 @@ suppressPackageStartupMessages({library(Biobase)
                                 library(scales)})
 source("./R/general_plots.R")
 source("./R/VR-Eye_functions.R")
+source("./R/VR-Eye_support_functions.R")
 source("./R/VR-Eye_plots.R")
 source('./R/tatarize_color_palette.R')
 expr.colors = colorRampPalette(rev(brewer.pal(n = 11, name = "Spectral")))(5)
@@ -61,6 +62,9 @@ print(fcs.files)
 #do you wish to downsample the data?
 sample.files <- FALSE
 sample.num <- 1000 
+
+#KNN settings
+kvalue <- 60
 ```
 
 ```{r load data}
@@ -131,17 +135,6 @@ print(tsne.plot)
 # 
 # #plot heat on markers
 # tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=7, orientation=1, export=TRUE, output_path=og.output.path)
-```
-
-```{r, set VR constants}
-#KNN settings
-kvalue <- 60
-
-#set minimum cluster size
-min.cluster <- 15
-
-#DBSCAN settings
-db.eps <- 2 
 ```
 
 ```{r KNN MEM}
@@ -236,7 +229,6 @@ for (i in 1:length(goals)){
     VR_round = current_round,
     search_label = ref.label,
     goal = goal,
-    min.clust = min.cluster,
     kvalue = kvalue
   )
   multi.labels <- rbind(multi.labels, this.round)
