@@ -1,0 +1,428 @@
+---
+title: "VR-Eye on the RAPID Dataset"
+author: "Claire Cross, Cass Mayeda"
+date: "2024-05-20"
+---
+
+#IMC dataset downloaded from: https://doi.org/10.5281/zenodo.4911135. 
+#Tietscher Sandra. (2022). Imaging Mass Cytometry Dataset of exhausted and non-exhausted breast cancer microenvironments [Data set]. Zenodo. https://doi.org/10.5281/zenodo.4911135 
+#Tietscher, S., Wagner, J., Anzeneder, T. et al. A comprehensive single-cell map of T cell exhaustion-associated immune environments in human breast cancer. Nat Commun 14, 98 (2023). https://doi.org/10.1038/s41467-022-35238-w
+
+```{r setup, include=FALSE}
+# # uncomment lines below to install packages
+# install.packages("knitr", repos = "http://cran.us.r-project.org")
+# if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+# BiocManager::install("Biobase")
+# BiocManager::install("flowCore")
+# install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+# install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+# install.packages("cowplot", repos = "http://cran.us.r-project.org")
+# install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
+# install.packages("stringr", repos = "http://cran.us.r-project.org")
+# install.packages("FNN", repos = "http://cran.us.r-project.org")
+# BiocManager::install("cytoMEM")
+# install.packages("dbscan", repos = "http://cran.us.r-project.org")
+# install.packages("scales", repos = "http://cran.us.r-project.org")
+# install.packages("viridis", repos = "http://cran.us.r-project.org")
+# install.packages("ggbeeswarm", repos = "http://cran.us.r-project.org")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r initialization}
+#load packages into the working library
+suppressPackageStartupMessages({library(Biobase)
+                                library(flowCore)
+                                library(ggplot2)
+                                library(tidyverse)
+                                library(cowplot)
+                                library(RColorBrewer)
+                                library(viridis)
+                                library(stringr)
+                                library(FNN)
+                                library(cytoMEM)
+                                library(ggbeeswarm)
+                                library(scales)})
+source("./R/general_plots.R")
+source("./R/VR-Eye_functions.R")
+source("./R/VR-Eye_support_functions.R")
+source("./R/VR-Eye_plots.R")
+source('./R/tatarize_color_palette.R')
+expr.colors = colorRampPalette(rev(brewer.pal(n = 11, name = "Spectral")))(5)
+
+#specify fcs file location and output path
+file.path <- paste0(getwd(), '/data files/IMC - Tietscher et al/')
+og.output.path <- paste0(getwd(), '/output files/VR-Eye_IMC/')
+
+#locate fcs file
+fcs.files <- dir(path = file.path, pattern = "*.fcs")
+print(fcs.files)
+
+#do you wish to downsample the data?
+sample.files <- FALSE
+sample.num <- 1000 
+
+#KNN settings
+kvalue <- 60
+```
+
+```{r load data}
+#load cell data
+setwd(file.path)
+data.lists <- lapply(lapply(fcs.files, read.FCS, truncate_max_range = FALSE),exprs)
+combined.patient.data <- as.data.frame(do.call(rbind, data.lists))
+colnames(combined.patient.data)[1:(ncol(combined.patient.data)-2)] <- (read.FCS(fcs.files[[1]])@parameters@data[["desc"]])
+colnames(combined.patient.data)
+```
+
+```{r downsampling}
+if (sample.files == TRUE){ 
+  #set seed for reproducibility
+  set.seed(1)
+  #split into individual files
+  files.to.sample <- split(combined.patient.data, combined.patient.data$`File_ID`) 
+  sampled.data <- list()
+  for (i in 1:length(files.to.sample)){
+    #file has a lot of cells => we must downsample
+    if ((nrow(files.to.sample[[i]])) >= sample.num){ 
+      sampled.data[[i]] <- as.data.frame(files.to.sample[[i]][sample(nrow(files.to.sample[[i]]), sample.num), ])
+    #not enough cells to downsample => just keep all of the cells present
+    }else{sampled.data[[i]] <- files.to.sample[[i]]}
+  }
+  #combine list data into one big data frame
+  combined.sampled.data <- as.data.frame(do.call(rbind, sampled.data))
+}else{combined.sampled.data <- combined.patient.data}
+
+print(paste0(nrow(combined.sampled.data), ' cells will be analyzed'))
+```
+
+```{r select data}
+#select tSNE columns 
+tSNE.indx1 <- 49
+tSNE.indx2 <- 50
+tSNE.data <- combined.sampled.data[, c(tSNE.indx1:tSNE.indx2)]
+colnames(tSNE.data) <- c("tSNE1", "tSNE2")
+
+#clean up column names, mark the ones used to generate the t-SNE-CUDA
+protein.markers <- c(1:38, 41:43)
+tsne.markers <- c(2:20, 22:27, 29, 31:36, 42:43)
+
+#select marker channels
+panel.info <- as.data.frame(matrix(nrow=length(protein.markers), ncol=3))
+colnames(panel.info) <- c('indices', 'full_names', 'trimmed_names')
+panel.info$indices <- protein.markers
+panel.info$full_names <- colnames(combined.sampled.data)[protein.markers]
+panel.info$trimmed_names <- colnames(combined.sampled.data)[protein.markers]
+marker.data <- combined.sampled.data[, panel.info$indices]
+
+#arcsinh transformation
+cofactor <- 1
+marker.data <- asinh(marker.data/cofactor)
+colnames(marker.data) <- panel.info$trimmed_names
+```
+
+```{r t-SNE plots}
+#plot tSNE axes
+tsne.plot <- ggplot(tSNE.data) + geom_point(aes(x=tSNE1, y=tSNE2), color='lightgrey') +
+              labs(x='t-SNE2', y='t-SNE1', title='IMC Breast Cancer', 
+                   caption="Data from Tietscher et al., Nature. 2023") + 
+              coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
+print(tsne.plot)
+
+# #plot cell density on t-SNE axes
+# tsne.dens.plot <- tsne_density(tSNE.data, orientation=1, capt="Data from Tietscher et al., Nature. 2023", export=TRUE, output_path=og.output.path)
+# 
+# #plot heat on markers
+# tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=7, orientation=1, export=TRUE, output_path=og.output.path)
+```
+
+```{r KNN MEM}
+#look for existing KNN labels file
+knn.path <- og.output.path
+setwd(knn.path)
+knn.data.file <- dir(pattern='knn labels.RData')
+rds.name <- paste0(knn.path, 'knn labels.RData')
+  
+#load knn.labels if the file exists; otherwise, calculate knn.labels
+if(is.na(knn.data.file[1])){
+  start_time = Sys.time()
+  knn.labels = knn_MEM(tSNE.data, marker.data, kvalue=kvalue)
+  total_time = Sys.time() - start_time
+  print(' KNN MEM completed in ')
+  print(total_time)
+    
+  #save as rds 
+  save(knn.labels, file = paste0(og.output.path, 'knn labels.RData'))
+}else{load(file=rds.name)}
+```
+
+```{r set VR searching info}
+#specify searching labels and goals
+goals <- c('aDC', 'B cell', 'CD4 T cell', 'CD8 T cell', 
+           'endothelial', 'fibroblast', 'myeloid', 'neutrophil', 
+           'NK', 'pDC', 'plasma cell', 'Treg', 'tumor')
+
+ref.labels <- c('HLA-DR+9 HLA-ABC+8 CD45RO+5 CD4+5 HH3+3 CD3+3 MMP9+3 CD68+2 CD7+2 IDO1+2 LAMP3+2 CD11c+2 Tim-3+2 Granzyme_B+2 Arginase+2 CD140b+2 CD40+2 CD31_vWF+2 E-Cadherin+1 CD27+1 CD45RA+1 PD1+1 CD274+1 TCF7+1 FOXP3+1 ICOS+1 CD8a+1 CAIX+1 GITR+1 iNOS+1 Ki-67+1 CD15+1 SMA+0 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 CD21+0 Cleaved_CP+0 MPO+0', #aDC
+                'HLA-ABC+7 HLA-DR+6 CD45RA+5 CD45RO+5 CD20+4 HH3+3 CD3+2 MMP9+2 CD4+2 E-Cadherin+1 CD27+1 CD68+1 CD7+1 IDO1+1 CD11c+1 PD1+1 Tim-3+1 Granzyme_B+1 CD274+1 FOXP3+1 CD8a+1 Arginase+1 CD140b+1 CD40+1 CD31_vWF+1 iNOS+1 Cleaved_CP+1 Ki-67+1 CD15+1 SMA+0 panCK+0 CD38+0 CD303+0 LAG-3+0 LAMP3+0 TCF7+0 ICOS+0 CAIX+0 GITR+0 CD21+0 MPO+0', #B cell
+                'HLA-ABC+6 CD45RO+5 HLA-DR+4 CD4+4 CD3+3 HH3+2 MMP9+2 CD140b+2 SMA+1 E-Cadherin+1 CD27+1 CD68+1 CD7+1 CD45RA+1 IDO1+1 CD11c+1 PD1+1 Tim-3+1 Granzyme_B+1 CD274+1 TCF7+1 ICOS+1 GITR+1 Arginase+1 CD31_vWF+1 iNOS+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 CD8a+0 CAIX+0 CD40+0 CD21+0 Cleaved_CP+0 Ki-67+0 CD15+0 MPO+0', #CD4 T cell
+                'HLA-ABC+7 CD8a+5 HLA-DR+4 CD45RO+4 CD3+3 HH3+2 MMP9+2 CD140b+2 CD4+2 SMA+1 E-Cadherin+1 CD27+1 CD68+1 CD7+1 CD45RA+1 IDO1+1 CD11c+1 PD1+1 Tim-3+1 Granzyme_B+1 CD274+1 TCF7+1 GITR+1 Arginase+1 CD31_vWF+1 iNOS+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 ICOS+0 CAIX+0 CD40+0 CD21+0 Cleaved_CP+0 Ki-67+0 CD15+0 MPO+0', #CD8 T cell
+                'CD31_vWF+7 HLA-ABC+7 SMA+3 HLA-DR+3 MMP9+3 CD45RO+3 CD140b+3 HH3+2 Tim-3+2 Arginase+2 CD4+2 E-Cadherin+1 CD68+1 CD7+1 CD45RA+1 IDO1+1 CD3+1 PD1+1 Granzyme_B+1 FOXP3+1 CAIX+1 CD40+1 iNOS+1 Ki-67+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 CD11c+0 CD274+0 TCF7+0 ICOS+0 CD8a+0 GITR+0 CD21+0 Cleaved_CP+0 CD15+0 MPO+0', #endothelial
+                'HLA-ABC+5 SMA+3 CD140b+3 HH3+2 MMP9+2 CD45RO+2 E-Cadherin+1 HLA-DR+1 CD68+1 CD3+1 Tim-3+1 Granzyme_B+1 Arginase+1 CD4+1 CD31_vWF+1 Ki-67+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 CD45RA+0 IDO1+0 LAMP3+0 CD11c+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 CAIX+0 GITR+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 CD15+0 MPO+0', #fibroblast
+                'HLA-DR+6 HLA-ABC+6 CD68+3 CD45RO+3 HH3+2 CD11c+2 Tim-3+2 MMP9+2 CD140b+2 CD4+2 SMA+1 E-Cadherin+1 CD45RA+1 IDO1+1 CD3+1 Granzyme_B+1 Arginase+1 CD31_vWF+1 CD15+1 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 LAMP3+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 CAIX+0 GITR+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 Ki-67+0 MPO+0', #myeloid
+                'CD15+8 HLA-ABC+7 CD45RO+4 HLA-DR+3 MMP9+3 Arginase+3 HH3+2 E-Cadherin+2 CD4+2 MPO+2 CD68+1 CD45RA+1 IDO1+1 CD3+1 CD11c+1 Tim-3+1 Granzyme_B+1 CD274+1 CAIX+1 CD140b+1 CD31_vWF+1 SMA+0 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 LAMP3+0 PD1+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 Ki-67+0', #neutrophil
+                'HLA-ABC+7 CD7+4 HLA-DR+3 CD45RO+3 HH3+2 CD45RA+2 Tim-3+2 MMP9+2 CD4+2 E-Cadherin+1 CD68+1 IDO1+1 CD3+1 CD11c+1 Granzyme_B+1 CD274+1 CD8a+1 GITR+1 Arginase+1 CD140b+1 CD31_vWF+1 Ki-67+1 CD15+1 SMA+0 panCK+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 PD1+0 TCF7+0 FOXP3+0 ICOS+0 CAIX+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 MPO+0', #NK
+                'HLA-ABC+7 HLA-DR+6 CD45RO+4 CD4+4 HH3+3 CD68+3 CD45RA+3 MMP9+3 Granzyme_B+3 CD303+2 CD3+2 Tim-3+2 CD140b+2 CD31_vWF+2 E-Cadherin+1 CD27+1 CD7+1 IDO1+1 CD11c+1 PD1+1 CD274+1 TCF7+1 CD8a+1 CAIX+1 GITR+1 Arginase+1 CD40+1 iNOS+1 Ki-67+1 CD15+1 SMA+0 panCK+0 CD38+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 ICOS+0 CD21+0 Cleaved_CP+0 MPO+0', #pDC
+                'HLA-ABC+7 HLA-DR+3 MMP9+3 CD45RO+3 CD31_vWF+3 HH3+2 E-Cadherin+2 CD38+2 CD45RA+2 CD3+2 Tim-3+2 Arginase+2 CD140b+2 CD4+2 CD27+1 CD303+1 CD68+1 CD7+1 IDO1+1 CD11c+1 PD1+1 Granzyme_B+1 CD274+1 TCF7+1 ICOS+1 CAIX+1 GITR+1 CD40+1 iNOS+1 Ki-67+1 SMA+0 panCK+0 LAG-3+0 CD20+0 LAMP3+0 FOXP3+0 CD8a+0 CD21+0 Cleaved_CP+0 CD15+0 MPO+0', #plasma cell
+                'HLA-ABC+7 HLA-DR+5 CD45RO+5 CD4+4 CD3+3 HH3+2 CD68+2 CD7+2 Tim-3+2 MMP9+2 FOXP3+2 CD140b+2 SMA+1 E-Cadherin+1 CD27+1 CD45RA+1 IDO1+1 CD11c+1 PD1+1 Granzyme_B+1 CD274+1 ICOS+1 GITR+1 Arginase+1 CD40+1 CD31_vWF+1 iNOS+1 Ki-67+1 panCK+0 CD38+0 CD303+0 LAG-3+0 CD20+0 LAMP3+0 TCF7+0 CD8a+0 CAIX+0 CD21+0 Cleaved_CP+0 CD15+0 MPO+0', #Treg
+                'HLA-ABC+5 HH3+3 E-Cadherin+3 panCK+3 MMP9+2 CD45RO+2 Arginase+2 CD4+2 HLA-DR+1 CD68+1 CD45RA+1 IDO1+1 CD3+1 Tim-3+1 Granzyme_B+1 CAIX+1 CD140b+1 CD31_vWF+1 Ki-67+1 CD15+1 SMA+0 CD38+0 CD27+0 CD303+0 LAG-3+0 CD20+0 CD7+0 LAMP3+0 CD11c+0 PD1+0 CD274+0 TCF7+0 FOXP3+0 ICOS+0 CD8a+0 GITR+0 CD40+0 CD21+0 iNOS+0 Cleaved_CP+0 MPO+0') #tumor
+```
+
+```{r, VR-Eye}
+#set multi-round variables
+current_round <- 0 
+multi.labels <- data.frame()
+multi.df <- combined.sampled.data
+
+#search for each ref label supplied
+for (i in 1:length(goals)){
+  #get goal & search label
+  goal <- goals[i]
+  ref.label <- ref.labels[i]
+  print(paste0('searching for ', goal, ': ', ref.label))
+
+  # check that markers in the searching label are being measured in the new dataset
+  common.label <- check_panel(ref.label, panel.info)
+  common.ref.MEM.score <- common.label[[1]]
+  ref.label <- common.label[[2]]
+
+  # create output folder
+  current_round <- current_round + 1
+  run.folder <- paste0(og.output.path, goal, '/')
+  dir.create(run.folder)
+
+  #VR-Eye search and sim plot
+  common.MEM.scores <- knn.labels[, colnames(common.ref.MEM.score)]
+
+  #check if only one marker
+  if (!is.data.frame(common.MEM.scores)) {
+    common.MEM.scores <- as.data.frame(common.MEM.scores)
+    colnames(common.MEM.scores) <- colnames(common.ref.MEM.score)
+  }
+    
+  #calculate similarity
+  print('calculating similarity')
+  sim <- sim_scores(common.MEM.scores, common.ref.MEM.score)
+  my.range <- max(sim)-min(sim)
+  sim.data <- cbind(marker.data, File_ID=multi.df$sample.num, tSNE.data, sim)
+  sim.plot <- VR_Eye_sim_plot(sim.data, ref.label, orientation=1)
+  #export
+  png(paste0(run.folder, goal, " similarity.png"),
+      height = 1500, width = 1500, res = 200)
+  print(sim.plot)
+  dev.off()
+
+  #save round information to multi.df
+  print('saving data to multi.df')
+  this.round <- c()
+  this.round = cbind(
+    VR_round = current_round,
+    search_label = ref.label,
+    goal = goal,
+    kvalue = kvalue
+  )
+  multi.labels <- rbind(multi.labels, this.round)
+  save(multi.labels, file = paste0(og.output.path, "multi-run labels.RData"))
+
+  #save similarity score in multi-round results df
+  multi.df <- cbind(multi.df, sim)
+  colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_", goal, "_sim")
+
+  #update multi.df
+  rds.name <- paste0(og.output.path, 'multi-run VR-Eye.RData')
+  save(multi.df, file = rds.name)
+}
+load(paste0(og.output.path, 'multi-run VR-Eye.RData'))
+load(paste0(og.output.path, 'multi-run labels.RData'))
+```
+
+```{r select slide to plot}
+#select data
+sample.number <- 9
+ROI.number <- 2
+patient.data <- multi.df[which(multi.df$sample.num==sample.number),]
+slide.data <- patient.data[which(patient.data$ROI.num==ROI.number), ]
+
+#set color palettes
+cell.type.labels.all <- c('-1'='Unclassified', '1'='aDC', '2'='B cell', 
+                          '3'='CD4 T cell', '4'='CD4 T cell', '5'='CD8 T cell', 
+                          '6'='CD8 T cell', '7'='Endothelial', '8'='Fibroblast', 
+                          '9'='Myeloid', '10'='Neutrophil', '11'='NK', 
+                          '12'='pDC', '13'='Plasma cell', 
+                          '14'='Stromal', '15'='T Cell', '16'='Treg', 
+                          '17'='Tumor', '18'='Tumor', '19'='Tumor', '20'='Tumor')
+cell.type.palette.all <- c('-1'='lightgrey', #unclassified 
+                           '1'='plum2', #aDC
+                           '2'='#474278', #B
+                           '3'='#FBB700', '4'='#FBB700', #CD4 T cell
+                           '5'='#BF7C00', '6'='#BF7C00', #CD8 T cell
+                           '7'='#62B1BB', #endothelial
+                           '8'='#3E6887', #fibroblast
+                           '9'='#DB6E6C', #myeloid
+                           '10'='#DE1807', #neutrophil
+                           '11'='black', #NK
+                           '12'='lightpink', #pDC
+                           '13'='plum4', #plasma cell
+                           '14'='darkgrey', #stromal
+                           '15'='chocolate1', #T cell
+                           '16'='#790807', #Treg
+                           '17'='#235C3A', '18'='#235C3A', '19'='#235C3A', '20'='#235C3A') #tumor
+
+#plot Tietscher cell types on selected slide
+slide.plot <- ggplot(slide.data, aes(x=Center_X, y=Center_Y, col=as.factor(cell.subtype.num))) + 
+                    geom_point(size=1.5) + theme_bw() + theme(panel.grid=element_blank()) + 
+                    scale_color_manual(name='Cell Type', labels=cell.type.labels.all, 
+                                       values=cell.type.palette.all) + coord_fixed() +
+                    ylim(1000,0) +labs(title='Tietscher Pop', x='x', y='y')
+print(slide.plot)
+#export
+png(paste0(og.output.path, 'slide ', sample.number, '-', ROI.number, ' Tietscher cell types.png'), 
+    height=1000, width=1400, res=200)
+print(slide.plot)
+dev.off()
+
+#create output folders
+slide.exp.path <- paste0(og.output.path, '/protein expression on slide/')
+if (!dir.exists(slide.exp.path)) {dir.create(slide.exp.path)}
+slide.sim.path <- paste0(og.output.path, '/similarity on slide/')
+if (!dir.exists(slide.sim.path)) {dir.create(slide.sim.path)}
+```
+
+```{r plot protein expression on slide}
+#selct markers to plot 
+marker.names <- c('HLA-DR', 'CD68', 'CD15', 'CD20', 'CD3', 
+                  'CD4', 'CD8a', 'CD31_vWF', 'panCK')
+
+#plot each marker's protin expression on the selected slide
+for (i in marker.names){
+  expression.plot <- ggplot(slide.data, 
+                            aes(x=Center_X, y=Center_Y, col=asinh(slide.data[,as.character(i)]/1))) + 
+                        scale_color_gradient(name='arcsinh expression', low='lightgrey', high='#2C2C7F') +
+                        geom_point(size=1.5) + theme_bw() + theme(panel.grid=element_blank()) + 
+                        coord_fixed() + labs(title=i, x='x', y='y') + ylim(1000,0) 
+  #export
+  png(paste0(slide.exp.path, 'sample ', sample.number, ' ROI ', ROI.number, '_', i, ' expression.png'), 
+      width=1200, height=1000, res=200)
+  print(expression.plot)
+  dev.off()
+}
+```
+
+```{r plot VR similarity on slide}
+#plot VR-Eye similarity on selected slide for selected cell populations
+percentile <- 0.02
+for (i in 1:length(goals)){
+  #select similarity column
+  goal <- goals[i]
+  sim.col <- paste0("r", i, "_", goal, "_sim")
+  
+  #select data to plot
+  to.plot <- slide.data[,c('Center_X', 'Center_Y', sim.col)]
+  min.sim <- min(to.plot[,sim.col])
+  max.sim <- 100
+  bp <- quantile(to.plot[,3], percentile) #set bottom percentile as the bottom of the similarity scale to account for outliers
+  sim.step <- (max.sim-bp)/4
+  
+  #plot 
+  slide.VR.plot <- ggplot(to.plot, aes(x=to.plot[,1], y=to.plot[,2], col=to.plot[,3])) +
+                    geom_point() + ylim(1000, 0) + coord_fixed() +
+                    scale_color_gradientn(colors = c("lightgrey", "lightgrey", "#5E4FA2", "#5E4FA2",
+                                                     "#88CFA4", "#FFFFBF", "#F88D52", "#9E0142"), 
+                                          values = rescale(c(0, min.sim, min.sim, bp, bp+sim.step, 
+                                                             bp+2*sim.step, bp+3*sim.step, max.sim)), 
+                                          name = "Similarity", limits=c(0, max.sim)) +
+                    labs(title = paste0(goal, " similarity"), x='x', y='y') +
+                    theme_bw() + theme(panel.grid = element_blank())
+  #export
+  png(paste0(slide.sim.path, sample.number, '-', ROI.number, '_', goal, '_VR similarity.png'), 
+      width=1200, height=1000, res=200)
+  print(slide.VR.plot)
+  dev.off()
+}
+```
+
+```{r plot similarity overlay on slide}
+#set similarity bins
+multi.bins <- c(85:100)
+multi.bias <- 0.001 #bias < 1 compresses the top of the scale
+
+#calculate color gradient for each cell type
+pops.to.plot <- c(1:8, 9:13) #skip NK cells (too few)
+my.colors <- sim.list <- c()
+for (i in pops.to.plot) { 
+  #get VR search info
+  goal <- goals[i]
+  sim.col <- paste0("r", i, "_", goal, "_sim")
+  sim.list <- c(sim.list, sim.col)
+  max.sim <- floor(max(slide.data[,sim.col]))-1
+
+  #create a gradient from white to this population's chosen color
+  cell.type.color <- cell.type.palette.all[names(cell.type.labels.all[which(tolower(cell.type.labels.all)==tolower(goal))][1])]
+  these.colors <- c(colorRampPalette(c("lightgrey", cell.type.color), 
+                                     bias=multi.bias)(length(multi.bins)-(100-max.sim)), 
+                   rep(cell.type.color, 100-max.sim))
+  #add to entire list
+  my.colors <- c(my.colors, unlist(these.colors))
+}
+my.colors <- unname(my.colors)
+
+
+#plot base layer
+sim.overlay.slide.plot <- ggplot(slide.data, aes(x = Center_X, y = Center_Y)) + 
+                          geom_point(color = "gray94", size=1.5) + 
+                          coord_fixed() + 
+                          ylim(1000,0) + labs(x = "x", y = "y", title='VR-Eye Similarity') + 
+                          theme_bw() + theme(panel.grid = element_blank())
+
+#plot cells in each bin
+for (bin in 1:length(multi.bins)) { #plot lowest bins first
+  for (pop in 1:length(sim.list)) { #plot sim to each cell type
+    #select cells that fall into this bin
+    indxs <- which(slide.data[, sim.list[pop]] >= multi.bins[bin])
+    this.color <- my.colors[length(multi.bins)*pop - (length(multi.bins) - bin)]
+    sim.overlay.slide.plot <- sim.overlay.slide.plot + 
+                              geom_point(data = slide.data[indxs, ], 
+                                         color = this.color, size=1.5) 
+  }
+}
+print(sim.overlay.slide.plot)
+
+#export
+png(paste0(og.output.path, 'slide ', sample.number, '-', ROI.number, " VR-Eye similarity overlay.png"),
+    height = 1000, width = 1000, res = 200)
+print(sim.overlay.slide.plot)
+dev.off()
+```
+
+```{r export as fcs}
+output.path <- paste0(og.output.path, '/output fcs files/')
+dir.create(output.path)
+
+#split data by patient
+separate.fcs.files <- split(multi.df, multi.df$sample.num)
+for (i in 1:length(separate.fcs.files)){
+  #format data
+  reduce.data <- separate.fcs.files[[i]]
+  mat.input <- as.matrix(reduce.data)
+  #set metadata
+  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(multi.df))
+  metadata$range <- apply(apply(mat.input, 2, range), 2, diff)
+  metadata$minRange <- apply(mat.input, 2, min)
+  metadata$maxRange <- apply(mat.input, 2, max)
+  input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
+  #write file
+  new.filename <- paste0(output.path, strftime(Sys.time(),"%Y-%m-%d"), "_Sample ", i, "_VR-Eye.fcs")
+  write.FCS(input.flowframe, filename=new.filename)
+  print(paste0("FCS file ", i, ': done' ))
+}
+```
