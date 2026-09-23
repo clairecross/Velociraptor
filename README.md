@@ -16,7 +16,9 @@ If you’re interested in learning more, check out the other tools on the CytoLa
 https://github.com/cytolab/
 
 ### Datasets used here:
-1. The human glioblastoma mass cytometry dataset (RAPID dataset) was downloaded from: http://flowrepository.org/id/FR-FCM-Z24K. This study can be found at: Leelatian, N., Sinnaeve, J. et al. Unsupervised machine learning reveals risk stratifying glioblastoma tumor cells. eLife 9 (2020). https://doi.org/10.7554/eLife.56879.
+1. The mouse spleen mass cytometry and spectral flow cytometry dataset (CyTOF vs SFC) was downloaded from: https://github.com/SameOldSamOld/CyTOFAuroraComparison. This study can be found at: Ferrer-Font, L., J. U. Mayer, S. Old, I. F. Hermans, J. Irish, and K. M. Price. 2020. 'High-Dimensional Data Analysis Algorithms Yield Comparable Results for Mass Cytometry and Spectral Flow Cytometry Data', Cytometry A, 97: 824-31. https://doi.org/10.1002/cyto.a.24016. 
 
 2. The human breast cancer imaging mass cytometry dataset (IMC dataset) was downloaded from: Tietscher Sandra. (2022). Imaging Mass Cytometry Dataset of exhausted and non-exhausted breast cancer microenvironments [Data set]. Zenodo. https://doi.org/10.5281/zenodo.4911135. This study can be found at: Tietscher, S., Wagner, J., Anzeneder, T. et al. A comprehensive single-cell map of T cell exhaustion-associated immune environments in human breast cancer. Nat Commun 14, 98 (2023). https://doi.org/10.1038/s41467-022-35238-w.
+
+3. The human glioblastoma mass cytometry dataset (RAPID dataset) was downloaded from: http://flowrepository.org/id/FR-FCM-Z24K. This study can be found at: Leelatian, N., Sinnaeve, J. et al. Unsupervised machine learning reveals risk stratifying glioblastoma tumor cells. eLife 9 (2020). https://doi.org/10.7554/eLife.56879.
 
