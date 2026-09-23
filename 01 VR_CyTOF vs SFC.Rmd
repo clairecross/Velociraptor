@@ -1,0 +1,456 @@
+---
+title: "VR on Immune Subsets measured by CyTOF and Spectral Flow"
+author: "Claire Cross"
+date: "2026-01-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# # uncomment lines below to install packages
+# if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+# BiocManager::install("Biobase")
+# BiocManager::install("flowCore")
+# install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+# install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+# install.packages("cowplot", repos = "http://cran.us.r-project.org")
+# install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
+# #install.packages("viridis", repos = "http://cran.us.r-project.org")
+# #install.packages("data.table", repos = "http://cran.us.r-project.org")
+# install.packages("stringr", repos = "http://cran.us.r-project.org")
+# install.packages("FNN", repos = "http://cran.us.r-project.org")
+# #install.packages("matrixStats", repos = "http://cran.us.r-project.org")
+# BiocManager::install("cytoMEM")
+# # install.packages("gplots", repos = "http://cran.us.r-project.org")
+# # install.packages("gbutils", repos = "http://cran.us.r-project.org")
+# install.packages("dbscan", repos = "http://cran.us.r-project.org")
+# install.packages("scales", repos = "http://cran.us.r-project.org")
+```
+
+```{r initialization}
+#load packages into the working library
+suppressPackageStartupMessages({library(Biobase)
+  library(flowCore)
+  library(ggplot2)
+  library(tidyverse)
+  library(cowplot)
+  library(RColorBrewer)
+  library(viridis)
+  library(stringr)
+  library(FNN)
+  library(cytoMEM)
+  library(matrixStats)
+  library(scales)})
+source("./R/general_plots.R")
+source("./R/VR-Eye_functions.R")
+source("./R/VR-Eye_plots.R")
+source('./R/tatarize_color_palette.R')
+source('./R/VR-Eye_support_functions.R')
+expr.colors = colorRampPalette(rev(brewer.pal(n = 11, name = "Spectral")))(5)
+
+#specify output paths 
+og.output.path <- paste0(getwd(), '/output files/CyTOF vs SFC/')
+
+#do you wish to downsample the data?
+sample.files <- FALSE
+sample.num <- 1000 
+
+#specify fcs file location 
+file.path <- paste0(getwd(), '/data files/CyTOF vs SFC - Ferrer-Font et al/')
+
+#locate fcs files
+fcs.files <- dir(path = file.path, pattern = "*.fcs")
+print(fcs.files)
+```
+
+```{r set VR searching info}
+#KNN settings
+kvalue <- 60
+
+#specify searching labels - these labels were derived from theory
+goals <- c('Bcell', 'CD4T', 'CD8T', 'DC1', 'DC2', 'DNT', 'InflMono', 'Neutrophil', 'NK', 'Tcell')
+ref.labels <- c('B220+10 CD3e+0', #B Theory
+                'CD3e+10 B220+0 CD4+10 CD8a+0', #CD4T Theory
+                'CD3e+10 B220+0 CD8a+10 CD4+0', #CD8T Theory
+                'CD11c+10 XCR1+10 CD3e+0 B220+0 Ly6G+0 CD161+0', #DC1 Theory
+                'CD11c+10 CD3e+0 B220+0 Ly6G+0 CD161+0 XCR1+0', #DC2 Theory
+                'CD3e+10 B220+0 CD4+0 CD8a+0', #DNT Theory
+                'CD11b+10 Ly6C+10 CD3e+0 B220+0 Ly6G+0 CD161+0 CD11c+0', #Infl mono Theory
+                'CD3e+0 B220+0 Ly6G+10 CD161+0', #Neutrophil Theory
+                'CD3e+0 B220+0 CD161+10 Ly6G+0', #NK Theory
+                'CD3e+10 B220+0') #T Theory
+```
+
+
+```{r load CyTOF files}
+#load CyTOF data
+setwd(file.path)
+data.list <- lapply(lapply(fcs.files[1:5], read.FCS, truncate_max_range = FALSE), exprs)
+combined.sample.data <- as.data.frame(do.call(rbind, mapply(cbind, data.list, "File_ID"= c(111, 112, 113, 81, 82), SIMPLIFY=F)))
+colnames(combined.sample.data)[1:(ncol(combined.sample.data)-1)] <- as.character(read.FCS(fcs.files[1], truncate_max_range=FALSE)@parameters@data[["desc"]])
+colnames(combined.sample.data)
+
+#set output path 
+platform <- 'CyTOF'
+output.path <- paste0(og.output.path, platform, '/')
+```
+
+```{r downsampling}
+if (sample.files == TRUE){ 
+  #set seed for reproducibility
+  set.seed(1)
+  #split into individual files
+  files.to.sample <- split(combined.sample.data, combined.sample.data$`File_ID`) 
+  sampled.data <- list()
+  for (i in 1:length(files.to.sample)){
+    #file has a lot of cells => we must downsample
+    if ((nrow(files.to.sample[[i]])) >= sample.num){ 
+      sampled.data[[i]] <- as.data.frame(files.to.sample[[i]][sample(nrow(files.to.sample[[i]]), sample.num), ])
+    #not enough cells to downsample => just keep all of the cells present
+    }else{sampled.data[[i]] <- files.to.sample[[i]]}
+  }
+  #combine list data into one big data frame
+  combined.sampled.data <- as.data.frame(do.call(rbind, sampled.data))
+}else{combined.sampled.data <- combined.sample.data}
+
+print(paste0(nrow(combined.sampled.data), ' cells will be analyzed'))
+```
+
+```{r select data}
+#select tSNE columns 
+tSNE.indx1 <- 63
+tSNE.indx2 <- 64
+tSNE.data <- combined.sampled.data[, c(tSNE.indx1:tSNE.indx2)]
+colnames(tSNE.data) <- c("tSNE1", "tSNE2")
+
+#select marker channels
+indices <- c(6, 8:9, 12:14, 17:18, 20, 32:36, 38:39, 47, 58, 61)
+panel.info <- as.data.frame(matrix(ncol=3, nrow=length(indices)))
+colnames(panel.info) <- c('indices', 'full_names', 'trimmed_names')
+panel.info$indices <- indices
+panel.info$full_names <- panel.info$trimmed_names <- unlist(lapply(colnames(combined.sampled.data)[indices], function(x) str_split(x, '_')[[1]][2]))
+panel.info[5, 'trimmed_names'] <- 'CD161'
+panel.info[3, 'trimmed_names'] <- 'FoxP3'
+panel.info[6, 'trimmed_names'] <- 'F4_80'
+panel.info[16, 'trimmed_names'] <- 'Ly6C'
+print(panel.info$trimmed_names)
+marker.data <- combined.sampled.data[, panel.info$indices]
+
+#arcsinh transformation
+cofactor <- c(5, 5, 5, 5, 5, 5, 20, 40, 5, 5, 
+              15, 5, 15, 5, 5, 5, 5, 5, 30)
+marker.data <- asinh(marker.data/cofactor)
+colnames(marker.data) <- panel.info$trimmed_names
+```
+
+```{r t-SNE plots}
+#plot tSNE axes
+tsne.plot <- ggplot(tSNE.data) + geom_point(aes(x=tSNE1, y=tSNE2), color='lightgrey') +
+              labs(x='t-SNE1', y='t-SNE2', title=paste0(platform, ' Files'), 
+                   caption="Data from Ferrer-Font et al., Cytometry A 2020") + 
+              coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
+print(tsne.plot)
+
+#plot cell density on t-SNE axes
+tsne.dens.plot <- tsne_density(tSNE.data, orientation=1, capt=paste0(platform, " Data from Ferrer-Font et al., Cytometry A 2020"),
+                               export=TRUE, output_path=output.path)
+
+#plot heat on markers
+tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=5, orientation=1,
+                                             export=TRUE, output_path=output.path)
+```
+
+```{r KNN MEM}
+#look for existing KNN labels file
+setwd(output.path)
+knn.data.file <- dir(pattern=paste0('knn labels_', platform, '.RData'))
+rds.name <- paste0(output.path, 'knn labels_', platform, '.RData')
+  
+#load knn.labels if the file exists; otherwise, calculate knn.labels
+if(is.na(knn.data.file[1])){
+  start_time = Sys.time()
+  knn.labels = knn_MEM(tSNE.data, marker.data, kvalue=kvalue)
+  total_time = Sys.time() - start_time
+  print(' KNN MEM completed in ')
+  print(total_time)
+    
+  #save as rds 
+  save(knn.labels, file = rds.name)
+}else{load(file=rds.name)}
+```
+
+```{r, VR-Eye}
+#set multi-round variables
+current_round <- 0 
+multi.labels <- data.frame()
+multi.df <- combined.sampled.data
+
+#search for each ref label supplied
+for (j in 1:length(goals)){
+  #get goal & search label
+  goal <- goals[j]
+  ref.label <- ref.labels[j]
+  print(paste0('searching for ', goal, ': ', ref.label))
+
+  # check that markers in the searching label are being measured in the new dataset
+  common.label <- check_panel(ref.label, panel.info)
+  common.ref.MEM.score <- common.label[[1]]
+  ref.label <- common.label[[2]]
+
+  # create output folder
+  current_round <- current_round + 1
+  run.folder <- paste0(output.path, goal, '/')
+  dir.create(run.folder)
+
+  #VR-Eye search and sim plot
+  common.MEM.scores <- knn.labels[, colnames(common.ref.MEM.score)]
+
+  #check if only one marker
+  if (!is.data.frame(common.MEM.scores)) {
+    common.MEM.scores <- as.data.frame(common.MEM.scores)
+    colnames(common.MEM.scores) <- colnames(common.ref.MEM.score)
+  }
+    
+  #calculate similarity
+  print('calculating similarity')
+  sim <- sim_scores(common.MEM.scores, common.ref.MEM.score)
+  my.range <- max(sim)-min(sim)
+  sim.data <- cbind(marker.data, File_ID=multi.df$File_ID, tSNE.data, sim)
+  sim.plot <- VR_Eye_sim_plot(sim.data, ref.label)
+  #export
+  png(paste0(run.folder, goal, " similarity.png"),
+      height = 1500, width = 1500, res = 200)
+  print(sim.plot)
+  dev.off()
+
+  #save round information to multi.df
+  print('saving data to multi.df')
+  this.round <- c()
+  this.round = cbind(
+    VRPTR_round = current_round,
+    search_label = ref.label,
+    goal = goal,
+    kvalue = kvalue
+  )
+  multi.labels <- rbind(multi.labels, this.round)
+  save(multi.labels, file = paste0(output.path, "multi-run labels_", platform, ".RData"))
+
+  #save similarity score in multi-round results df
+  multi.df <- cbind(multi.df, sim)
+  colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_", goal, "_sim")
+
+  #update multi.df
+  rds.name <- paste0(output.path, "multi-run VR_", platform, ".RData")
+  save(multi.df, file = rds.name)
+}
+VR.CyTOF <- multi.df
+```
+
+```{r export as fcs}
+#split data by patient
+separate.fcs.files <- split(multi.df, multi.df$File_ID)
+for (i in 1:length(separate.fcs.files)){
+  #format data
+  reduce.data <- separate.fcs.files[[i]]
+  mat.input <- as.matrix(reduce.data)
+  #set metadata
+  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(multi.df))
+  metadata$range <- apply(apply(mat.input, 2, range), 2, diff)
+  metadata$minRange <- apply(mat.input, 2, min)
+  metadata$maxRange <- apply(mat.input, 2, max)
+  input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
+  #write file
+  sample.name <- str_remove(fcs.files[i], '.fcs')
+  new.filename <- paste0(output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR.fcs")
+  write.FCS(input.flowframe, filename=new.filename)
+  print(paste0("FCS file ", i, ': ', sample.name, " done"))
+}
+```
+
+
+```{r load SFC files}
+#load SFC data
+setwd(file.path)
+data.list <- lapply(lapply(fcs.files[6:10], read.FCS, truncate_max_range = FALSE), exprs)
+combined.sample.data <- as.data.frame(do.call(rbind, mapply(cbind, data.list, "File_ID"= c(111, 81, 112, 82, 113), SIMPLIFY=F)))
+colnames(combined.sample.data)[8:29] <- c('KLRG1', 'CD45', 'FoxP3', 'F4_80', 'CD8a', 
+                                   'CD11b', 'Ki67', 'CD3e', 'Ly6C', 'CD161', 
+                                   'Ly6G', 'TNFa', 'CD11c', 'B220', 'XCR1', 
+                                   'CD44', 'CD279', 'CD274', 'CD4', 'CD69', 
+                                   'ZombieNIR', 'MHCII')
+colnames(combined.sample.data)
+
+#set output path 
+platform <- 'SFC'
+output.path <- paste0(og.output.path, platform, '/')
+```
+
+```{r downsampling}
+if (sample.files == TRUE){ 
+  #set seed for reproducibility
+  set.seed(1)
+  #split into individual files
+  files.to.sample <- split(combined.sample.data, combined.sample.data$`File_ID`) 
+  sampled.data <- list()
+  for (i in 1:length(files.to.sample)){
+    #file has a lot of cells => we must downsample
+    if ((nrow(files.to.sample[[i]])) >= sample.num){ 
+      sampled.data[[i]] <- as.data.frame(files.to.sample[[i]][sample(nrow(files.to.sample[[i]]), sample.num), ])
+    #not enough cells to downsample => just keep all of the cells present
+    }else{sampled.data[[i]] <- files.to.sample[[i]]}
+  }
+  #combine list data into one big data frame
+  combined.sampled.data <- as.data.frame(do.call(rbind, sampled.data))
+}else{combined.sampled.data <- combined.sample.data}
+
+print(paste0(nrow(combined.sampled.data), ' cells will be analyzed'))
+```
+
+```{r select data}
+#select tSNE columns 
+tSNE.indx1 <- 31
+tSNE.indx2 <- 32
+tSNE.data <- combined.sampled.data[, c(tSNE.indx1:tSNE.indx2)]
+colnames(tSNE.data) <- c("tSNE1", "tSNE2")
+
+#select marker channels
+indices <- c(8, 10:18, 20:27, 29)
+panel.info <- as.data.frame(matrix(ncol=3, nrow=length(indices)))
+colnames(panel.info) <- c('indices', 'full_names', 'trimmed_names')
+panel.info$indices <- indices
+panel.info$full_names <- panel.info$trimmed_names <- colnames(combined.sampled.data)[indices]
+print(panel.info$trimmed_names)
+marker.data <- combined.sampled.data[, panel.info$indices]
+
+#arcsinh transformation
+cofactor <- 6000
+marker.data <- asinh(marker.data/cofactor)
+colnames(marker.data) <- panel.info$trimmed_names
+```
+
+```{r t-SNE plots}
+#plot tSNE axes
+tsne.plot <- ggplot(tSNE.data) + geom_point(aes(x=tSNE1, y=tSNE2), color='lightgrey') +
+              labs(x='t-SNE1', y='t-SNE2', title=paste0(platform, ' Files'), 
+                   caption="Data from Ferrer-Font et al., Cytometry A 2020") + 
+              coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
+print(tsne.plot)
+
+#plot cell density on t-SNE axes
+tsne.dens.plot <- tsne_density(tSNE.data, orientation=1, capt=paste0(platform, " Data from Ferrer-Font et al., Cytometry A 2020"),
+                               export=TRUE, output_path=output.path)
+
+#plot heat on markers
+tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=5, orientation=1,
+                                             export=TRUE, output_path=output.path)
+```
+
+```{r KNN MEM}
+#look for existing KNN labels file
+setwd(output.path)
+knn.data.file <- dir(pattern=paste0('knn labels_', platform, '.RData'))
+rds.name <- paste0(output.path, 'knn labels_', platform, '.RData')
+  
+#load knn.labels if the file exists; otherwise, calculate knn.labels
+if(is.na(knn.data.file[1])){
+  start_time = Sys.time()
+  knn.labels = knn_MEM(tSNE.data, marker.data, kvalue=kvalue)
+  total_time = Sys.time() - start_time
+  print(' KNN MEM completed in ')
+  print(total_time)
+    
+  #save as rds 
+  save(knn.labels, file = rds.name)
+}else{load(file=rds.name)}
+```
+
+```{r, VR-Eye}
+#set multi-round variables
+current_round <- 0 
+multi.labels <- data.frame()
+multi.df <- combined.sampled.data
+
+#search for each ref label supplied
+for (j in 1:length(goals)){
+  #get goal & search label
+  goal <- goals[j]
+  ref.label <- ref.labels[j]
+  print(paste0('searching for ', goal, ': ', ref.label))
+
+  # check that markers in the searching label are being measured in the new dataset
+  common.label <- check_panel(ref.label, panel.info)
+  common.ref.MEM.score <- common.label[[1]]
+  ref.label <- common.label[[2]]
+
+  # create output folder
+  current_round <- current_round + 1
+  run.folder <- paste0(output.path, goal, '/')
+  dir.create(run.folder)
+
+  #VR-Eye search and sim plot
+  common.MEM.scores <- knn.labels[, colnames(common.ref.MEM.score)]
+
+  #check if only one marker
+  if (!is.data.frame(common.MEM.scores)) {
+    common.MEM.scores <- as.data.frame(common.MEM.scores)
+    colnames(common.MEM.scores) <- colnames(common.ref.MEM.score)
+  }
+    
+  #calculate similarity
+  print('calculating similarity')
+  sim <- sim_scores(common.MEM.scores, common.ref.MEM.score)
+  my.range <- max(sim)-min(sim)
+  sim.data <- cbind(marker.data, File_ID=multi.df$File_ID, tSNE.data, sim)
+  sim.plot <- VR_Eye_sim_plot(sim.data, ref.label)
+  #export
+  png(paste0(run.folder, goal, " similarity.png"),
+      height = 1500, width = 1500, res = 200)
+  print(sim.plot)
+  dev.off()
+
+  #save round information to multi.df
+  print('saving data to multi.df')
+  this.round <- c()
+  this.round = cbind(
+    VRPTR_round = current_round,
+    search_label = ref.label,
+    goal = goal,
+    kvalue = kvalue
+  )
+  multi.labels <- rbind(multi.labels, this.round)
+  save(multi.labels, file = paste0(output.path, "multi-run labels_", platform, ".RData"))
+
+  #save similarity score in multi-round results df
+  multi.df <- cbind(multi.df, sim)
+  colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_", goal, "_sim")
+
+  #update multi.df
+  rds.name <- paste0(output.path, "multi-run VR_", platform, ".RData")
+  save(multi.df, file = rds.name)
+}
+VR.SFC <- multi.df
+```
+
+```{r export as fcs}
+#split data by patient
+separate.fcs.files <- split(multi.df, multi.df$File_ID)
+for (i in 1:length(separate.fcs.files)){
+  #format data
+  reduce.data <- separate.fcs.files[[i]]
+  mat.input <- as.matrix(reduce.data)
+  #set metadata
+  metadata <- data.frame(name=dimnames(mat.input)[[2]], desc=colnames(multi.df))
+  metadata$range <- apply(apply(mat.input, 2, range), 2, diff)
+  metadata$minRange <- apply(mat.input, 2, min)
+  metadata$maxRange <- apply(mat.input, 2, max)
+  input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
+  #write file
+  sample.name <- str_remove(fcs.files[(i+5)], '.fcs')
+  new.filename <- paste0(output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR.fcs")
+  write.FCS(input.flowframe, filename=new.filename)
+  print(paste0("FCS file ", i, ': ', sample.name, " done"))
+}
+```
+
+
