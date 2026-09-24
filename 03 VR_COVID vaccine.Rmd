@@ -250,7 +250,7 @@ for (i in 1:length(separate.fcs.files)){
   metadata$maxRange <- apply(mat.input, 2, max)
   input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
   #write file
-  sample.name <-  
+  sample.name <- str_remove(fcs.files[i], '.fcs')
   new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR.fcs")
   write.FCS(input.flowframe, filename=new.filename)
   print(paste0("FCS file ", i, ': ', sample.name, " done"))
