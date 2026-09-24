@@ -5,6 +5,9 @@
 output files/VR-Claw_RAPID/
 output files/VR-Eye_RAPID/
 
+#ignore CyTOF vs SFC dataset output
+output files/CyTOF vs SFC/
+
 #ignore IMC dataset output
 output files/VR-Eye_IMC/
 
