@@ -4,6 +4,9 @@ author: "Claire Cross"
 date: "2026-07-01"
 ---
 
+#COVID vaccine dataset downloaded from: https://flowrepository.org/experiments/4853 
+Kramer, K. J., E. M. Wilfong, K. Voss, S. M. Barone, A. R. Shiakolas, N. Raju, C. E. Roe, N. Suryadevara, L. M. Walker, S. C. Wall, A. Paulo, S. Schaefer, D. Dahunsi, C. S. Westlake, J. E. Crowe, Jr., R. H. Carnahan, J. C. Rathmell, R. H. Bonami, I. S. Georgiev, and J. M. Irish. 2022. 'Single-cell profiling of the antigen-specific response to BNT162b2 SARS-CoV-2 RNA vaccine', Nat Commun, 13: 3466. https://doi.org/10.1038/s41467-022-31142-5. 
+
 ```{r setup, include=FALSE}
 # knitr::opts_chunk$set(echo = TRUE)
 
@@ -47,11 +50,14 @@ expr.colors = colorRampPalette(rev(brewer.pal(n = 11, name = "Spectral")))(5)
 
 #specify fcs file location and output path
 file.path <- paste0(getwd(),"/data files/COVID vaccine/")
-og.output.path <- paste0(getwd(), '/output files/marker removal v2/')
+og.output.path <- paste0(getwd(), '/output files/COVID vaccine/')
 
 #locate fcs file
 fcs.files <- dir(path = file.path, pattern = "*.fcs")
 print(fcs.files)
+
+#KNN settings
+kvalue <- 60
 
 #do you wish to downsample the data?
 sample.files <- FALSE
@@ -112,28 +118,25 @@ print(colnames(marker.data))
 ```
 
 ```{r t-SNE plots}
-# #plot tSNE axes
-# tsne.plot <- ggplot(tSNE.data) + geom_point(aes(x=tSNE1, y=tSNE2), color='lightgrey') +
-#               labs(x='opt-SNE1', y='opt-SNE2', title='COVID vaccine Dataset - optSNE',
-#                    caption="Data from Barone et al., eLife, 2021") +
-#               coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
-# print(tsne.plot)
-# 
-# #plot cell density on t-SNE axes
-# tsne.dens.plot <- tsne_density(tSNE.data, orientation=1, capt="Data from Barone et al., eLife, 2021",
-#                                export=TRUE, file_name='DDPR', output_path=og.output.path)
-# 
-# #plot heat on markers
-# tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=8, orientation=1,
-#                                              export=TRUE, file_name='COVID vaccine', output_path=og.output.path)
+#plot tSNE axes
+tsne.plot <- ggplot(tSNE.data) + geom_point(aes(x=tSNE1, y=tSNE2), color='lightgrey') +
+              labs(x='t-SNE1', y='t-SNE2', title='COVID Vaccine Dataset',
+                   caption="Data from Kramer, Wilfong, and Voss et al., Nat Commun, 2022") +
+              coord_fixed(ratio=1) + theme_bw() + theme(panel.grid = element_blank())
+print(tsne.plot)
+
+#plot cell density on t-SNE axes
+tsne.dens.plot <- tsne_density(tSNE.data, orientation=1, capt="Data from Data from Kramer, Wilfong, and Voss et al., Nat Commun, 2022",
+                               export=TRUE, output_path=og.output.path)
+
+#plot heat on markers
+tsne.heat.on.markers <- tsne_heat_on_markers(tSNE.data, marker.data, n_col=8, orientation=1,
+                                             export=TRUE, output_path=og.output.path)
 ```
 
-```{r KNN MEM on optSNE}
+```{r KNN MEM}
 output.path <- og.output.path
 dir.create(output.path)
-
-#KNN settings
-kvalue <- 60
 
 #look for existing KNN labels file
 knn.path <- paste0(getwd(), '/output files/')
@@ -156,98 +159,18 @@ if(is.na(knn.data.file[1])){
 
 ```{r set VR searching info}
 #specify searching labels 
-goals <- c('CD8responder_-00', 'CD8responder_-01', 'CD8responder_-02', 'CD8responder_-03', 'CD8responder_-04', 'CD8responder_-05', 
-           'CD8responder_-06', 'CD8responder_-07', 'CD8responder_-08', 'CD8responder_-09', 'CD8responder_-10', 'CD8responder_-11', 
-           'CD8responder_-12', 'CD8responder_-13', 'CD8responder_-14', 'CD8responder_-15', 'CD8responder_-16', 'CD8responder_-17', 
-           'CD8responder_-18', 'CD8responder_-19', 'CD8responder_-20', 'CD8responder_-21', 'CD8responder_-22', 'CD8responder_-23', 
-           'CD8responder_-24', 'CD8responder_-25', 'CD8responder_-26', 'CD8responder_-27', 'CD8responder_-28', 'CD8responder_-29', 
-           'CD8responder_-30', 'CD8responder_-31', 'CD8responder_-32', 'CD8responder_-33', 'CD8responder_-34', 'CD8responder_-35', 
-           'CD8responder_-36', 'CD8responder_-37', 'CD8responder_-38', 'CD8responder_-39')
+goals <- c('CD38+ICOS+MemoryCD8_40features', 'CD38+ICOS+MemoryCD8_17features', 'CD38+ICOS+MemoryCD8_4features')
 ref.labels <- c(
-  #full
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD66b+0 CD16+0 CD14+0 CD4+0 CD19+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 TCRgd+0 CD137+0 CCR7+0 CD25+0 CD45RA+0 CXCR5+0 CD57+0 CD56+0 CD11b+0', 
-  #-1: CD66b
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD16+0 CD14+0 CD4+0 CD19+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 TCRgd+0 CD137+0 CCR7+0 CD25+0 CD45RA+0 CXCR5+0 CD57+0 CD56+0 CD11b+0', 
-  #-2: TCRgd
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD16+0 CD14+0 CD4+0 CD19+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD25+0 CD45RA+0 CXCR5+0 CD57+0 CD56+0 CD11b+0', 
-  #-3: CXCR5
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD16+0 CD14+0 CD4+0 CD19+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD25+0 CD45RA+0 CD57+0 CD56+0 CD11b+0', 
-  #-4: CD57
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD16+0 CD14+0 CD4+0 CD19+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD25+0 CD45RA+0 CD56+0 CD11b+0', 
-  #-5: CD25
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD16+0 CD14+0 CD4+0 CD19+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD45RA+0 CD56+0 CD11b+0', 
-  #-6: CD16
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD4+0 CD19+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD45RA+0 CD56+0 CD11b+0',
-  #-7: CD19
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD4+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD45RA+0 CD56+0 CD11b+0',
-  #-8: CD20
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD4+0 CD127+0 GRIM19+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD45RA+0 CD56+0 CD11b+0',
-  #-9: CD11b
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD4+0 CD127+0 GRIM19+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD45RA+0 CD56+0',
-  #-10: CD4
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD127+0 GRIM19+0 CCR4+0 CD134+0 CD137+0 CCR7+0 CD45RA+0 CD56+0',
-  #-11: CD134
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD127+0 GRIM19+0 CCR4+0 CD137+0 CCR7+0 CD45RA+0 CD56+0',
-  #-12: CCR7
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD127+0 GRIM19+0 CCR4+0 CD137+0 CD45RA+0 CD56+0',
-  #-13: CCR4
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD127+0 GRIM19+0 CD137+0 CD45RA+0 CD56+0',
-  #-14: CD56
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD127+0 GRIM19+0 CD137+0 CD45RA+0',
-  #-15: CD137
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 CD127+0 GRIM19+0 CD45RA+0',
-  #-16: CD127
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 GRIM19+0 CD45RA+0',
-  #-17: CD45RA
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 CD14+0 GRIM19+0',
-  #-18: CD14
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1 GRIM19+0',
-  #-19: GRIM19
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1 CXCR4+1',
-  #-20: CXCR4
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 HLA-DR+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1',
-  #-21: HLA-DR
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 ATP5a+1 GLUT3+1 CTLA4+1 CYTOC+1',
-  #-22: GLUT3
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 Ki-67+2 ATP5a+1 CTLA4+1 CYTOC+1',
-  #-23: Ki-67
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 ATP5a+1 CTLA4+1 CYTOC+1',
-  #-24: ATP5a
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 CTLA4+1 CYTOC+1',
-  #-25: CYTOC
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CPT1a+2 CD98+2 CTLA4+1',
-  #-26: CPT1a
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CD98+2 CTLA4+1',
-  #-27: CTLA4              
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3 CD98+2',
-  #-28: CD98
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3 PD-1+3',
-  #-29: PD-1
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CXCR3+4 CD95+4 CD44+4 CD45+3 GLUT1+3',
-  #-30: CXCR3
-  'CD38+9 CD8+6 ICOS+5 CD3+4 CD45R0+4 CD27+4 CD95+4 CD44+4 CD45+3 GLUT1+3',
-  #-31: CD3
-  'CD38+9 CD8+6 ICOS+5 CD45R0+4 CD27+4 CD95+4 CD44+4 CD45+3 GLUT1+3',
-  #-32: CD27
-  'CD38+9 CD8+6 ICOS+5 CD45R0+4 CD95+4 CD44+4 CD45+3 GLUT1+3',
-  #-33: GLUT1
-  'CD38+9 CD8+6 ICOS+5 CD45R0+4 CD95+4 CD44+4 CD45+3',
-  #-34: CD45
-  'CD38+9 CD8+6 ICOS+5 CD45R0+4 CD95+4 CD44+4',
-  #-35: CD95
-  'CD38+9 CD8+6 ICOS+5 CD45R0+4 CD44+4',
-  #-36: CD45R0
-  'CD38+9 CD8+6 ICOS+5 CD44+4',
-  #-37: CD44
-  'CD38+9 CD8+6 ICOS+5',
-  #-38: ICOS
-  'CD38+9 CD8+6',
-  #-39: CD8
-  'CD38+9'
+  #40 features
+  'CD38+10 CD44+8 ICOS+7 CD45+6 CD8+6 CD45R0+6 CD27+5 CXCR3+4 GLUT1+4 CD95+4 PD-1+4 CPT1a+3 Ki-67+3 HLA-DR+3 CD3+2 CD98+2 CTLA4+2 ATP5a+1 GLUT3+1 CYTOC+1 CD45RA+1 CXCR4+1 CD66b+0 CD16+0 CD14+0 CD4+0 CD19+0 CD127+0 GRIM19+0 CD20+0 CCR4+0 CD134+0 TCRgd+0 CD137+0 CCR7+0 CD25+0 CXCR5+0 CD57+0 CD56+0 CD11b+0', 
+  #17 features
+  'CD38+10 ICOS+7 CD8+6 CD45R0+6 CXCR3+4 CD95+4 PD-1+4 CPT1a+3 Ki-67+3 HLA-DR+3 CD3+2 CYTOC+1 CD45RA+1 CXCR4+1 CD4+0 CD127+0 CCR7+0',
+  #4 features
+  'CD38+10 CD45RA+1 CD4+0 CCR7+0'
 )
 ```
 
-```{r, VR-Eye}
+```{r, VR}
 #set multi-round variables
 current_round <- 0 
 multi.labels <- data.frame()
@@ -270,7 +193,7 @@ for (j in 1:length(goals)){
   run.folder <- paste0(og.output.path, goal, '/')
   dir.create(run.folder)
 
-  #VR-Eye search and sim plot
+  #VR search and sim plot
   common.MEM.scores <- knn.labels[, colnames(common.ref.MEM.score)]
 
   #check if only one marker
@@ -308,7 +231,7 @@ for (j in 1:length(goals)){
   colnames(multi.df)[ncol(multi.df)] <- paste0("r", current_round, "_", goal, "_sim")
 
   #update multi.df
-  rds.name <- paste0(og.output.path, 'multi-run VR-Eye.RData')
+  rds.name <- paste0(og.output.path, 'multi-run VR.RData')
   save(multi.df, file = rds.name)
 }
 ```
@@ -328,7 +251,7 @@ for (i in 1:length(separate.fcs.files)){
   input.flowframe <- new("flowFrame", exprs=mat.input, parameters = AnnotatedDataFrame(metadata))  
   #write file
   sample.name <-  
-  new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR-Eye.fcs")
+  new.filename <- paste0(og.output.path, strftime(Sys.time(),"%Y-%m-%d"), "_", sample.name, "_VR.fcs")
   write.FCS(input.flowframe, filename=new.filename)
   print(paste0("FCS file ", i, ': ', sample.name, " done"))
 }
