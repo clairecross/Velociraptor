@@ -4,6 +4,9 @@ author: "Claire Cross"
 date: "2026-01-19"
 ---
 
+#CyTOF and SFC datasets downloaded from: https://github.com/SameOldSamOld/CyTOFAuroraComparison. 
+Ferrer-Font, L., J. U. Mayer, S. Old, I. F. Hermans, J. Irish, and K. M. Price. 2020. 'High-Dimensional Data Analysis Algorithms Yield Comparable Results for Mass Cytometry and Spectral Flow Cytometry Data', Cytometry A, 97: 824-31. https://doi.org/10.1002/cyto.a.24016. 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -12,19 +15,16 @@ knitr::opts_chunk$set(echo = TRUE)
 #    install.packages("BiocManager")
 # BiocManager::install("Biobase")
 # BiocManager::install("flowCore")
+# BiocManager::install("cytoMEM")
 # install.packages("ggplot2", repos = "http://cran.us.r-project.org")
 # install.packages("tidyverse", repos = "http://cran.us.r-project.org")
 # install.packages("cowplot", repos = "http://cran.us.r-project.org")
 # install.packages("RColorBrewer", repos = "http://cran.us.r-project.org")
 # #install.packages("viridis", repos = "http://cran.us.r-project.org")
-# #install.packages("data.table", repos = "http://cran.us.r-project.org")
 # install.packages("stringr", repos = "http://cran.us.r-project.org")
 # install.packages("FNN", repos = "http://cran.us.r-project.org")
-# #install.packages("matrixStats", repos = "http://cran.us.r-project.org")
-# BiocManager::install("cytoMEM")
-# # install.packages("gplots", repos = "http://cran.us.r-project.org")
-# # install.packages("gbutils", repos = "http://cran.us.r-project.org")
-# install.packages("dbscan", repos = "http://cran.us.r-project.org")
+# install.packages("matrixStats", repos = "http://cran.us.r-project.org")
+# install.packages("DescTools", repos = "http://cran.us.r-project.org")
 # install.packages("scales", repos = "http://cran.us.r-project.org")
 ```
 
@@ -32,6 +32,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #load packages into the working library
 suppressPackageStartupMessages({library(Biobase)
   library(flowCore)
+  library(cytoMEM)
   library(ggplot2)
   library(tidyverse)
   library(cowplot)
@@ -39,8 +40,8 @@ suppressPackageStartupMessages({library(Biobase)
   library(viridis)
   library(stringr)
   library(FNN)
-  library(cytoMEM)
   library(matrixStats)
+  library(DescTools)
   library(scales)})
 source("./R/general_plots.R")
 source("./R/VR-Eye_functions.R")
@@ -69,13 +70,12 @@ print(fcs.files)
 kvalue <- 60
 
 #specify searching labels - these labels were derived from theory
-goals <- c('Bcell', 'CD4T', 'CD8T', 'DC1', 'DC2', 'DNT', 'InflMono', 'Neutrophil', 'NK', 'Tcell')
+goals <- c('Bcell', 'CD4T', 'CD8T', 'DC1', 'DC2', 'InflMono', 'Neutrophil', 'NK', 'Tcell')
 ref.labels <- c('B220+10 CD3e+0', #B Theory
                 'CD3e+10 B220+0 CD4+10 CD8a+0', #CD4T Theory
                 'CD3e+10 B220+0 CD8a+10 CD4+0', #CD8T Theory
                 'CD11c+10 XCR1+10 CD3e+0 B220+0 Ly6G+0 CD161+0', #DC1 Theory
                 'CD11c+10 CD3e+0 B220+0 Ly6G+0 CD161+0 XCR1+0', #DC2 Theory
-                'CD3e+10 B220+0 CD4+0 CD8a+0', #DNT Theory
                 'CD11b+10 Ly6C+10 CD3e+0 B220+0 Ly6G+0 CD161+0 CD11c+0', #Infl mono Theory
                 'CD3e+0 B220+0 Ly6G+10 CD161+0', #Neutrophil Theory
                 'CD3e+0 B220+0 CD161+10 Ly6G+0', #NK Theory
@@ -453,4 +453,80 @@ for (i in 1:length(separate.fcs.files)){
 }
 ```
 
+```{r load VR data}
+#CyTOF VR data
+load(paste0(og.output.path, "CyTOF/multi-run VR_CyTOF.RData"))
+VR.CyTOF <- multi.df
+
+#SFC VR data
+load(paste0(og.output.path, "SFC/multi-run VR_SFC.RData"))
+VR.SFC <- multi.df
+```
+
+```{r load similarity thresholds}
+#similarity thresholds were optimized to best capture gated populations
+sim.thresholds <- read.csv(paste0(file.path, 'similarity thresholds.csv'))
+```
+
+```{r calculate population abundance per patient}
+#create dataframe to store population abundance data
+abundance.df <- as.data.frame(matrix(nrow=(length(goals)*length(unique(VR.CyTOF$File_ID))), ncol=4))
+colnames(abundance.df) <- c('Pop', 'Sample', 'Abundance', 'Platform')
+  
+#split VR data by sample
+VR.CyTOF.split <- split(VR.CyTOF, VR.CyTOF$File_ID)
+VR.SFC.split <- split(VR.SFC, VR.SFC$File_ID)
+
+#calculate population abundance per patient
+count <- 1
+for(i in 1:length(goals)){ #for each cell population
+  pop <- goals[i]
+  
+  #pull optimized similarity threshold for this population
+  sim.thresh.CyTOF <- sim.thresholds[which(sim.thresholds$Pop==pop & sim.thresholds$Platform=='CyTOF'),'Sim_Threshold']
+  sim.thresh.SFC <- sim.thresholds[which(sim.thresholds$Pop==pop & sim.thresholds$Platform=='SFC'),'Sim_Threshold']
+  
+  #get name of similarity column
+  sim.col <- paste0('r', i, '_', pop, '_sim')
+  
+  for(j in 1:length(VR.CyTOF.split)){ #for each sample
+    #calculate pop abundance in CyTOF data
+    abundance <- nrow(VR.CyTOF.split[[j]][which(VR.CyTOF.split[[j]][,sim.col]>=sim.thresh.CyTOF),])/nrow(VR.CyTOF.split[[j]])*100
+    abundance.df[count,] <- c(pop, unique(VR.CyTOF.split[[j]]$File_ID), abundance, 'CyTOF')
+    count <- count + 1
+    
+    #calculate pop abundance in SFC data
+    abundance <- nrow(VR.SFC.split[[j]][which(VR.SFC.split[[j]][,sim.col]>=sim.thresh.SFC),])/nrow(VR.SFC.split[[j]])*100
+    abundance.df[count,] <- c(pop, unique(VR.SFC.split[[j]]$File_ID), abundance, 'SFC')
+    count <- count + 1
+  }
+}
+abundance.df$Abundance <- as.numeric(abundance.df$Abundance)
+```
+
+```{r plot population abundance per patient}
+#calculate concordance correlation coefficient
+abundance.df.wide <- pivot_wider(abundance.df, names_from = 'Platform', values_from = 'Abundance')
+ccc <- CCC(x=abundance.df.wide$CyTOF, y=abundance.df.wide$SFC)
+
+#create color palette
+col.pal <- c('#474278', '#FBB700', '#BF7C00', '#3E6887', '#62B1BB', '#DB6E6C', '#790807', '#235C3A', 'chocolate1')
+names(col.pal) <- goals
+  
+#plot cell abundance 
+corr.plot <- ggplot() + coord_fixed() + theme_bw() + 
+  geom_point(data=abundance.df.wide, aes(x=CyTOF, y=SFC, col=Pop)) + 
+  geom_line(data=data.frame(x=c(0,70)), y=c(0,70), 
+            aes(x=x, y=y), linetype='dashed', col='black') + 
+  xlim(0, 70) + ylim(0, 70) + theme(panel.grid=element_blank()) + 
+  scale_color_manual(values=col.pal) + 
+  labs(title='VR Population Abundance - Labels from Theory', 
+       caption=paste0('CCC: ', round(ccc.all$rho.c$est, 2), ' (95% CI ', round(ccc.all$rho.c$lwr.ci, 2), 
+                      '-', round(ccc.all$rho.c$upr.ci, 2), ')'))
+  print(corr.plot)
+#export
+png(paste0(og.output.path, 'CCC_theory.png'), height=1200, width=1200, res=200)
+print(corr.plot)
+dev.off()
+```
 
