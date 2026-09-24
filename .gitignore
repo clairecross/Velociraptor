@@ -11,5 +11,8 @@ output files/CyTOF vs SFC/
 #ignore IMC dataset output
 output files/VR-Eye_IMC/
 
+#ignore covid vaccine dataset output
+output files/COVID vaccine/
+
 #ignore vignettes folder (work in progress)
 vignettes/
