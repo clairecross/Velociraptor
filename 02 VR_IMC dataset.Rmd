@@ -1,5 +1,5 @@
 ---
-title: "VR-Eye on the RAPID Dataset"
+title: "VR-Eye on the breast cancer IMC Dataset"
 author: "Claire Cross, Cass Mayeda"
 date: "2024-05-20"
 ---
